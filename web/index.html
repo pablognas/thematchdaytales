@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Matchday Tales — Mini Economic Model</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+
+    h1 { font-size: 1.6rem; margin-bottom: 0.25rem; color: #f8fafc; }
+    p.subtitle { color: #94a3b8; margin-bottom: 1.5rem; font-size: 0.9rem; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      background: #1e2432;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .card h2 { font-size: 1rem; color: #90cdf4; }
+
+    label { font-size: 0.8rem; color: #94a3b8; }
+
+    input[type="file"] {
+      width: 100%;
+      font-size: 0.8rem;
+      color: #e2e8f0;
+      background: #2d3748;
+      border: 1px solid #4a5568;
+      border-radius: 4px;
+      padding: 0.3rem 0.5rem;
+      cursor: pointer;
+    }
+
+    textarea {
+      width: 100%;
+      height: 200px;
+      background: #111827;
+      color: #d1fae5;
+      border: 1px solid #2d3748;
+      border-radius: 4px;
+      padding: 0.5rem;
+      font-family: monospace;
+      font-size: 0.75rem;
+      resize: vertical;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin: 1.5rem 0 1rem;
+    }
+
+    button {
+      padding: 0.55rem 1.2rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+
+    #btn-tick   { background: #22c55e; color: #052e16; }
+    #btn-export { background: #3b82f6; color: #eff6ff; }
+    #btn-defaults { background: #6366f1; color: #eef2ff; }
+
+    #log-container {
+      background: #111827;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+    #log-container h2 { font-size: 1rem; color: #fcd34d; margin-bottom: 0.5rem; }
+    #log {
+      font-family: monospace;
+      font-size: 0.75rem;
+      white-space: pre-wrap;
+      color: #86efac;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    .status-bar {
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚽ The Matchday Tales — Mini Economic Model</h1>
+  <p class="subtitle">Simulador econômico mensal • Carregue os CSVs, rode ticks e exporte.</p>
+
+  <div class="actions">
+    <button id="btn-defaults">📂 Carregar exemplos padrão</button>
+    <button id="btn-tick">▶ Rodar Tick Mensal</button>
+    <button id="btn-export">⬇ Exportar CSVs</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>👥 Pessoas</h2>
+      <label for="file-pessoas">Carregar pessoas.csv</label>
+      <input type="file" id="file-pessoas" accept=".csv" />
+      <label for="ta-pessoas">Conteúdo CSV</label>
+      <textarea id="ta-pessoas" spellcheck="false" placeholder="Carregue ou cole o CSV de pessoas aqui…"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>🏢 Empresas</h2>
+      <label for="file-empresas">Carregar empresas.csv</label>
+      <input type="file" id="file-empresas" accept=".csv" />
+      <label for="ta-empresas">Conteúdo CSV</label>
+      <textarea id="ta-empresas" spellcheck="false" placeholder="Carregue ou cole o CSV de empresas aqui…"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>🗺 Estados</h2>
+      <label for="file-estados">Carregar estados.csv</label>
+      <input type="file" id="file-estados" accept=".csv" />
+      <label for="ta-estados">Conteúdo CSV</label>
+      <textarea id="ta-estados" spellcheck="false" placeholder="Carregue ou cole o CSV de estados aqui…"></textarea>
+    </div>
+  </div>
+
+  <div id="log-container">
+    <h2>📋 Log do Último Tick</h2>
+    <div id="log">Nenhum tick executado ainda.</div>
+  </div>
+
+  <p class="status-bar" id="status">Pronto.</p>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

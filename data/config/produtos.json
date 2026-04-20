@@ -1,0 +1,44 @@
+{
+  "produtos": [
+    {
+      "id": "alimentacao_basica",
+      "nome": "Alimentação Básica",
+      "tipo": "consumivel",
+      "preco_base": 800,
+      "efeito": { "moral": 1 },
+      "durabilidade": null
+    },
+    {
+      "id": "imovel_medio",
+      "nome": "Imóvel Médio",
+      "tipo": "duravel",
+      "preco_base": 300000,
+      "efeito": { "patrimonio": 1, "moral": 1 },
+      "durabilidade": 120
+    },
+    {
+      "id": "veiculo_luxo",
+      "nome": "Veículo de Luxo",
+      "tipo": "duravel",
+      "preco_base": 150000,
+      "efeito": { "reputacao": 1 },
+      "durabilidade": 60
+    },
+    {
+      "id": "campanha_marketing",
+      "nome": "Campanha de Marketing",
+      "tipo": "consumivel",
+      "preco_base": 50000,
+      "efeito": { "reputacao": 1, "influencia": 1 },
+      "durabilidade": null
+    },
+    {
+      "id": "evento_cultural",
+      "nome": "Evento Cultural Patrocinado",
+      "tipo": "consumivel",
+      "preco_base": 20000,
+      "efeito": { "moral": 1, "reputacao": 1 },
+      "durabilidade": null
+    }
+  ]
+}

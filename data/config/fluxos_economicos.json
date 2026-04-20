@@ -1,0 +1,68 @@
+{
+  "fluxos": [
+    {
+      "id": "renda_para_caixa",
+      "descricao": "Renda mensal da pessoa é adicionada ao caixa.",
+      "origem": "pessoa.renda_mensal",
+      "destino": "pessoa.caixa",
+      "frequencia": "mensal"
+    },
+    {
+      "id": "irpf",
+      "descricao": "Imposto de Renda Pessoa Física: percentual da renda_mensal vai ao estado via pessoa.estado_id.",
+      "origem": "pessoa.renda_mensal",
+      "destino": "estado.renda_tributaria",
+      "taxa_campo": "estado.ir_pf",
+      "frequencia": "mensal"
+    },
+    {
+      "id": "irpj",
+      "descricao": "Imposto de Renda Pessoa Jurídica: percentual do lucro da empresa vai ao estado via empresa.estado_id.",
+      "origem": "empresa.lucro",
+      "destino": "estado.renda_tributaria",
+      "taxa_campo": "estado.ir_pj",
+      "frequencia": "mensal"
+    },
+    {
+      "id": "dividendos_empresario",
+      "descricao": "30% do lucro líquido (após IRPJ) é distribuído ao dono da empresa.",
+      "origem": "empresa.lucro",
+      "destino": "pessoa.caixa",
+      "percentual": 0.3,
+      "frequencia": "mensal"
+    },
+    {
+      "id": "gastos_classe_atributos",
+      "descricao": "Cada classe possui gastos mensais para manter seus atributos. Se não pago, atributo cai 1 ponto.",
+      "origem": "pessoa.caixa",
+      "destino": "manutencao_atributo",
+      "frequencia": "mensal"
+    },
+    {
+      "id": "salarios_politicos",
+      "descricao": "O estado paga salários mensais aos políticos registrados nele.",
+      "origem": "estado.renda_tributaria",
+      "destino": "pessoa.caixa",
+      "condicao": "pessoa.classe == politico AND pessoa.estado_id == estado.id",
+      "frequencia": "mensal"
+    },
+    {
+      "id": "investimento_cultura",
+      "descricao": "O estado investe em cultura, aumentando cultura e moral_populacao.",
+      "origem": "estado.renda_tributaria",
+      "destino": "estado.cultura",
+      "campo_custo": "estado.investimento_cultura",
+      "efeito_moral": 0.1,
+      "frequencia": "mensal"
+    },
+    {
+      "id": "investimento_fa",
+      "descricao": "O estado investe nas Forças Armadas, aumentando forcas_armadas e levemente moral_populacao.",
+      "origem": "estado.renda_tributaria",
+      "destino": "estado.forcas_armadas",
+      "campo_custo": "estado.investimento_fa",
+      "efeito_moral": 0.05,
+      "frequencia": "mensal"
+    }
+  ]
+}
