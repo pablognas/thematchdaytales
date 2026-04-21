@@ -352,7 +352,6 @@ function bindTableInputs(container) {
   container.querySelectorAll('input.cell-input').forEach(input => {
     input.addEventListener('change', () => {
       const { entity, idx, field } = input.dataset;
-      const arr = world[entity + 's'] || world[entity === 'estado' ? 'estados' : entity + 's'];
       const obj = getEntityArray(entity)[parseInt(idx)];
       if (!obj) return;
       setNestedField(obj, field, input.type === 'number' ? parseFloat(input.value) : input.value);
@@ -383,13 +382,18 @@ function getEntityArray(type) {
 }
 
 function setNestedField(obj, path, value) {
+  const BLOCKED = new Set(['__proto__', 'constructor', 'prototype']);
   const parts = path.split('.');
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    if (cur[parts[i]] === undefined) cur[parts[i]] = {};
-    cur = cur[parts[i]];
+    const key = parts[i];
+    if (BLOCKED.has(key)) return;
+    if (cur[key] === null || typeof cur[key] !== 'object') cur[key] = {};
+    cur = cur[key];
   }
-  cur[parts[parts.length - 1]] = value;
+  const lastKey = parts[parts.length - 1];
+  if (BLOCKED.has(lastKey)) return;
+  cur[lastKey] = value;
 }
 
 // ── Ativos Modal ─────────────────────────────────────────────────────────────
@@ -607,10 +611,10 @@ function renderInjectionsList() {
 
   for (const inj of all) {
     html += `<tr>
-      <td class="num">${inj.tick}</td>
-      <td>${inj.ownerType}</td>
+      <td class="num">${esc(inj.tick)}</td>
+      <td>${esc(inj.ownerType)}</td>
       <td class="id-cell">${esc(inj.ownerId)}</td>
-      <td class="num">${fmtNum(inj.amount)}</td>
+      <td class="num">${esc(fmtNum(inj.amount))}</td>
       <td><button class="btn-red btn-sm btn-remove-inj" data-inj-id="${esc(inj.id)}">× Remover</button></td>
     </tr>`;
   }

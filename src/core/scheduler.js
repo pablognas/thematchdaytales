@@ -108,7 +108,7 @@ function saveInjections(list) {
 export function scheduleInjection(tick, ownerType, ownerId, amount) {
   const list = loadInjections();
   list.push({
-    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id: crypto.randomUUID(),
     tick,
     ownerType,
     ownerId,
