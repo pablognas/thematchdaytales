@@ -195,6 +195,21 @@ document.getElementById('btn-export').addEventListener('click', () => {
     setStatus('⚠ Nenhum dado para exportar.');
     return;
   }
+
+  // Validate estado hierarchy before export
+  if (world.estados.length) {
+    const estadoIds = new Set(world.estados.map(s => s.id));
+    const selfParent   = world.estados.filter(s => s.parent_id && s.parent_id === s.id);
+    const missingParent = world.estados.filter(s => s.parent_id && !estadoIds.has(s.parent_id));
+    if (selfParent.length) {
+      setStatus(`⚠ Export bloqueado: estado(s) com self-parent: ${selfParent.map(s => `"${s.id}"`).join(', ')}`);
+      return;
+    }
+    if (missingParent.length) {
+      setStatus(`⚠ Exportando com parent_id inválido em: ${missingParent.map(s => `"${s.id}"`).join(', ')}`);
+    }
+  }
+
   if (world.pessoas.length)  downloadText('pessoas.csv',  unparseCsv(pessoasToRows(world.pessoas)));
   if (world.empresas.length) downloadText('empresas.csv', unparseCsv(empresasToRows(world.empresas)));
   if (world.estados.length)  downloadText('estados.csv',  unparseCsv(estadosToRows(world.estados)));
@@ -312,7 +327,8 @@ function renderEstadosTable() {
 
   let html = `<div class="table-wrap"><table>
     <thead><tr>
-      <th>ID</th><th>Nome</th><th>Patrimônio</th>
+      <th>ID</th><th>Nome</th><th>Tipo</th><th>Parent</th><th>Descrição</th>
+      <th>Patrimônio</th>
       <th>Populacão</th><th>Forças Arm.</th><th>Cultura</th><th>Moral Pop.</th>
       <th>Renda Trib.</th><th>IR PF</th><th>IR PJ</th><th>Imp. Prod.</th>
       <th>Sal. Pol.</th><th>Incent. Emp.</th><th>Inv. Cultura</th><th>Inv. FA</th>
@@ -321,9 +337,23 @@ function renderEstadosTable() {
     <tbody>`;
 
   for (const [i, est] of s.entries()) {
+    const parentOpts = s
+      .filter(x => x.id !== est.id)
+      .map(x => `<option value="${esc(x.id)}" ${est.parent_id === x.id ? 'selected' : ''}>${esc(x.nome || x.id)}</option>`)
+      .join('');
+    const parentValid = !est.parent_id || s.some(x => x.id === est.parent_id && x.id !== est.id);
+    const parentWarn  = est.parent_id && !parentValid
+      ? ` style="border-color:var(--red)" title="parent_id '${esc(est.parent_id)}' não encontrado"` : '';
+
     html += `<tr>
       <td class="id-cell">${esc(est.id)}</td>
       <td><input class="cell-input" data-entity="estado" data-idx="${i}" data-field="nome" value="${esc(est.nome)}" /></td>
+      <td><input class="cell-input" list="tipo-options" data-entity="estado" data-idx="${i}" data-field="tipo" value="${esc(est.tipo || '')}" style="width:100px" placeholder="ex: pais" /></td>
+      <td><select class="cell-input" data-entity="estado" data-idx="${i}" data-field="parent_id" style="width:130px"${parentWarn}>
+        <option value="" ${!est.parent_id ? 'selected' : ''}>— sem pai —</option>
+        ${parentOpts}
+      </select></td>
+      <td><input class="cell-input" data-entity="estado" data-idx="${i}" data-field="descricao" value="${esc(est.descricao || '')}" style="width:160px" /></td>
       <td class="num">${fmtNum(Math.round(est.patrimonio || 0))}</td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="atributos.populacao" value="${est.atributos.populacao}" style="width:110px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="0.1" data-entity="estado" data-idx="${i}" data-field="atributos.forcas_armadas" value="${est.atributos.forcas_armadas}" style="width:60px" /></td>
@@ -355,6 +385,21 @@ function bindTableInputs(container) {
       const obj = getEntityArray(entity)[parseInt(idx)];
       if (!obj) return;
       setEntityField(obj, field, input.type === 'number' ? parseFloat(input.value) : input.value);
+    });
+  });
+
+  // Select inputs (e.g. parent_id dropdown)
+  container.querySelectorAll('select.cell-input').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const { entity, idx, field } = sel.dataset;
+      const obj = getEntityArray(entity)[parseInt(idx)];
+      if (!obj) return;
+      if (field === 'parent_id' && sel.value === obj.id) {
+        sel.value = obj.parent_id || '';
+        setStatus('⚠ Um estado não pode ser seu próprio pai (self-parent).');
+        return;
+      }
+      setEntityField(obj, field, sel.value);
     });
   });
 
@@ -427,6 +472,10 @@ const FIELD_SETTERS = {
   'impostos.ir_pf':    (e, v) => { e.impostos.ir_pf    = v; },
   'impostos.ir_pj':    (e, v) => { e.impostos.ir_pj    = v; },
   'impostos.imp_prod': (e, v) => { e.impostos.imp_prod = v; },
+  // Estado hierarchy
+  tipo:      (e, v) => { e.tipo      = v; },
+  parent_id: (e, v) => { e.parent_id = v; },
+  descricao: (e, v) => { e.descricao = v; },
 };
 
 /** Apply a known field update to an entity. Ignores unknown paths. */
@@ -874,7 +923,30 @@ function buildEmpresaForm() {
 }
 
 function buildEstadoForm() {
+  const estados    = world.estados;
+  const parentOpts = estados.map(s =>
+    `<option value="${esc(s.id)}">${esc(s.nome || s.id)}</option>`
+  ).join('');
   return `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-tipo">Tipo</label>
+        <input id="nef-tipo" class="cell-input" list="tipo-options" placeholder="ex: municipio, pais, estado…" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-parent">Estado pai</label>
+        <select id="nef-parent" class="cell-input">
+          <option value="">— sem pai (raiz) —</option>
+          ${parentOpts}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-descricao">Descrição</label>
+        <input id="nef-descricao" class="cell-input" placeholder="Descrição opcional" />
+      </div>
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label" for="nef-populacao">População</label>
@@ -1027,10 +1099,23 @@ function saveNewEntity() {
     });
     renderEmpresasTable();
   } else if (type === 'estado') {
+    const parentId = document.getElementById('nef-parent').value;
+    if (parentId && parentId === id) {
+      document.getElementById('nef-id-error').textContent = 'Um estado não pode ser seu próprio pai.';
+      document.getElementById('nef-id').focus();
+      return;
+    }
+    const estadoIds = new Set(world.estados.map(s => s.id));
+    if (parentId && !estadoIds.has(parentId)) {
+      setStatus(`⚠ parent_id "${parentId}" não encontrado entre os estados carregados.`);
+    }
     const patrimonio = parseFloat(document.getElementById('nef-patrimonio').value) || 0;
     world.estados.push({
       id,
       nome,
+      tipo:      document.getElementById('nef-tipo').value.trim(),
+      parent_id: parentId,
+      descricao: document.getElementById('nef-descricao').value.trim(),
       patrimonio,
       atributos: {
         populacao:       parseFloat(document.getElementById('nef-populacao').value)  || 0,

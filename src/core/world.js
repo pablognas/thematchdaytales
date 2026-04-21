@@ -151,6 +151,9 @@ export function rowsToEstados(rows) {
     return {
       id: r.id,
       nome: r.nome,
+      tipo:      r.tipo      || '',
+      parent_id: r.parent_id || '',
+      descricao: r.descricao || '',
       patrimonio,
       atributos: {
         populacao:       toNum(r.populacao, 0),
@@ -184,6 +187,9 @@ export function estadosToRows(estados) {
   return estados.map(s => ({
     id: s.id,
     nome: s.nome,
+    tipo:      s.tipo      || '',
+    parent_id: s.parent_id || '',
+    descricao: s.descricao || '',
     patrimonio:           Math.round(s.patrimonio || 0),
     populacao:            s.atributos.populacao,
     forcas_armadas:       s.atributos.forcas_armadas,
