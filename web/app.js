@@ -911,18 +911,18 @@ function saveAddModal() {
 
   // ── Read & validate ID ──────────────────────────────────────────────────
   const rawId = (document.getElementById('add-id')?.value ?? '').trim();
-  // Only allow letters, digits, underscores and hyphens (consistent with CSV key conventions)
-  if (rawId && !/^[a-zA-Z0-9_-]+$/.test(rawId)) {
+
+  // Check empty first, then character set
+  if (!rawId) { showAddError('ID é obrigatório e não pode ser vazio.'); document.getElementById('add-id')?.focus(); return; }
+  if (!/^[a-zA-Z0-9_-]+$/.test(rawId)) {
     showAddError('ID pode conter apenas letras, números, underscores (_) e hífens (-).');
     document.getElementById('add-id')?.focus();
     return;
   }
   const id = rawId;
 
-  const nome = (document.getElementById('add-nome')?.value ?? '').trim();
-
   // ── Required field validation ────────────────────────────────────────────
-  if (!id) { showAddError('ID é obrigatório e não pode ser vazio.'); document.getElementById('add-id')?.focus(); return; }
+  const nome = (document.getElementById('add-nome')?.value ?? '').trim();
   if (!nome) { showAddError('Nome é obrigatório.'); document.getElementById('add-nome')?.focus(); return; }
 
   // ── Unique ID check ──────────────────────────────────────────────────────
@@ -1021,7 +1021,7 @@ function saveAddModal() {
   if (addEntityType === 'estado')  renderEstadosTable();
 
   closeAddModal();
-  setStatus(`✅ ${addEntityType} "${esc(nome)}" adicionado(a) com sucesso.`);
+  setStatus(`✅ ${esc(addEntityType)} "${esc(nome)}" adicionado(a) com sucesso.`);
 }
 
 function closeAddModal() {
