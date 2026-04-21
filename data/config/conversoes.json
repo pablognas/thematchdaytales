@@ -1,0 +1,19 @@
+{
+  "conversoes_entre_atributos": [
+    { "de": "influencia", "para": "reputacao", "taxa": 0.5 },
+    { "de": "reputacao",  "para": "influencia", "taxa": 0.5 },
+    { "de": "moral",      "para": "reputacao",  "taxa": 0.7 },
+    { "de": "reputacao",  "para": "moral",      "taxa": 0.7 },
+    { "de": "patrimonio", "para": "influencia", "taxa": 0.3 },
+    { "de": "influencia", "para": "patrimonio", "taxa": 0.2 }
+  ],
+  "conversoes_especiais_por_classe": {
+    "politico": [
+      { "de": "influencia", "para": "reputacao", "taxa": 0.8 },
+      { "de": "moral",      "para": "reputacao", "taxa": 1.0 }
+    ],
+    "jogador": [
+      { "de": "reputacao",  "para": "influencia", "taxa": 0.9 }
+    ]
+  }
+}

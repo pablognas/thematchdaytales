@@ -1,0 +1,32 @@
+{
+  "atributos": [
+    {
+      "id": "influencia",
+      "nome": "Influência",
+      "descricao": "Poder de persuasão e rede de contatos do personagem.",
+      "conversao_renda": 10000,
+      "decaimento_mensal": 0
+    },
+    {
+      "id": "patrimonio",
+      "nome": "Patrimônio",
+      "descricao": "Total de bens e ativos acumulados.",
+      "conversao_renda": 50000,
+      "decaimento_mensal": 0
+    },
+    {
+      "id": "moral",
+      "nome": "Moral",
+      "descricao": "Percepção pública positiva do personagem.",
+      "conversao_renda": 5000,
+      "decaimento_mensal": 0
+    },
+    {
+      "id": "reputacao",
+      "nome": "Reputação",
+      "descricao": "Histórico e credibilidade acumulados ao longo do tempo.",
+      "conversao_renda": 8000,
+      "decaimento_mensal": 0
+    }
+  ]
+}

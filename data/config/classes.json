@@ -1,0 +1,68 @@
+{
+  "classes": [
+    {
+      "id": "trabalhador",
+      "nome": "Trabalhador",
+      "descricao": "Pessoa comum que vende sua força de trabalho.",
+      "limites_atributos": {
+        "influencia":  { "min": 1, "max": 3 },
+        "patrimonio":  { "min": 1, "max": 4 },
+        "moral":       { "min": 1, "max": 5 },
+        "reputacao":   { "min": 1, "max": 3 }
+      },
+      "gastos_mensais": {
+        "influencia": 500,
+        "moral":      200,
+        "reputacao":  200
+      }
+    },
+    {
+      "id": "empresario",
+      "nome": "Empresário",
+      "descricao": "Dono ou sócio de ao menos uma empresa.",
+      "limites_atributos": {
+        "influencia":  { "min": 1, "max": 5 },
+        "patrimonio":  { "min": 1, "max": 5 },
+        "moral":       { "min": 1, "max": 5 },
+        "reputacao":   { "min": 1, "max": 5 }
+      },
+      "gastos_mensais": {
+        "influencia": 2000,
+        "moral":      500,
+        "reputacao":  1000
+      }
+    },
+    {
+      "id": "politico",
+      "nome": "Político",
+      "descricao": "Agente público com cargo eletivo ou nomeado.",
+      "limites_atributos": {
+        "influencia":  { "min": 1, "max": 5 },
+        "patrimonio":  { "min": 1, "max": 5 },
+        "moral":       { "min": 1, "max": 5 },
+        "reputacao":   { "min": 1, "max": 5 }
+      },
+      "gastos_mensais": {
+        "influencia": 3000,
+        "moral":      800,
+        "reputacao":  1500
+      }
+    },
+    {
+      "id": "jogador",
+      "nome": "Jogador",
+      "descricao": "Atleta profissional de alto rendimento.",
+      "limites_atributos": {
+        "influencia":  { "min": 1, "max": 5 },
+        "patrimonio":  { "min": 1, "max": 5 },
+        "moral":       { "min": 1, "max": 5 },
+        "reputacao":   { "min": 1, "max": 5 }
+      },
+      "gastos_mensais": {
+        "influencia": 5000,
+        "moral":      1000,
+        "reputacao":  2000
+      }
+    }
+  ]
+}
