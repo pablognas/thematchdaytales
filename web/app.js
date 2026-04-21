@@ -669,6 +669,376 @@ function renderInjectionsList() {
   });
 }
 
+// ── Add Entity Modal ──────────────────────────────────────────────────────────
+let addEntityType = null;
+
+/** Open the add-entity modal for the given type ('pessoa'|'empresa'|'estado'). */
+async function openAddModal(type) {
+  addEntityType = type;
+  try { await loadConfig(); } catch (err) { console.warn('config load failed (classes dropdown may be empty):', err); }
+  const titles = { pessoa: '👤 Nova Pessoa', empresa: '🏢 Nova Empresa', estado: '🗺 Novo Estado' };
+  document.getElementById('modal-add-title').textContent = titles[type] || '➕ Nova Entidade';
+  const errEl = document.getElementById('modal-add-error');
+  errEl.style.display = 'none';
+  errEl.textContent = '';
+  renderAddForm(type);
+  document.getElementById('modal-add').classList.add('open');
+  // Focus the ID field for quick keyboard entry
+  setTimeout(() => document.getElementById('add-id')?.focus(), 50);
+}
+
+/** Build the inner form HTML for the given entity type. */
+function renderAddForm(type) {
+  const estadosOpts = world.estados
+    .map(s => `<option value="${esc(s.id)}">${esc(s.nome || s.id)}</option>`)
+    .join('');
+  const pessoasOpts = world.pessoas
+    .map(p => `<option value="${esc(p.id)}">${esc(p.nome || p.id)} (${esc(p.classe)})</option>`)
+    .join('');
+  const classesOpts = (config?.classes?.classes ?? [])
+    .map(c => `<option value="${esc(c.id)}">${esc(c.nome)}</option>`)
+    .join('') || '<option value="trabalhador">Trabalhador</option>';
+
+  let html = '';
+
+  if (type === 'pessoa') {
+    html = `<div class="add-form-grid">
+      <div class="add-form-field">
+        <label for="add-id">ID <span class="required">*</span></label>
+        <input id="add-id" class="cell-input" placeholder="ex: pessoa_01" autocomplete="off" />
+        <small style="color:var(--muted);font-size:0.7rem">Letras, números, _ e - apenas</small>
+      </div>
+      <div class="add-form-field">
+        <label for="add-nome">Nome <span class="required">*</span></label>
+        <input id="add-nome" class="cell-input" placeholder="ex: João Silva" autocomplete="off" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-classe">Classe <span class="required">*</span></label>
+        <select id="add-classe">${classesOpts}</select>
+      </div>
+      <div class="add-form-field">
+        <label for="add-estado-id">Estado</label>
+        <select id="add-estado-id"><option value="">— nenhum —</option>${estadosOpts}</select>
+      </div>
+      <div class="add-form-field">
+        <label for="add-influencia">Influência</label>
+        <input id="add-influencia" class="cell-input num" type="number" min="1" max="5" step="1" value="1" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-patrimonio">Patrimônio</label>
+        <input id="add-patrimonio" class="cell-input num" type="number" min="0" value="1" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-moral">Moral</label>
+        <input id="add-moral" class="cell-input num" type="number" min="1" max="5" step="1" value="3" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-reputacao">Reputação</label>
+        <input id="add-reputacao" class="cell-input num" type="number" min="1" max="5" step="1" value="1" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-renda-mensal">Renda Mensal</label>
+        <input id="add-renda-mensal" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-caixa">Caixa</label>
+        <input id="add-caixa" class="cell-input num" type="number" value="0" />
+      </div>
+      <div class="add-form-field add-form-full">
+        <label>Gastos mensais pagos</label>
+        <div class="add-form-checks">
+          <label><input type="checkbox" id="add-gastos-influencia" checked /> Influência</label>
+          <label><input type="checkbox" id="add-gastos-moral"      checked /> Moral</label>
+          <label><input type="checkbox" id="add-gastos-reputacao"  checked /> Reputação</label>
+        </div>
+      </div>
+    </div>`;
+
+  } else if (type === 'empresa') {
+    html = `<div class="add-form-grid">
+      <div class="add-form-field">
+        <label for="add-id">ID <span class="required">*</span></label>
+        <input id="add-id" class="cell-input" placeholder="ex: empresa_01" autocomplete="off" />
+        <small style="color:var(--muted);font-size:0.7rem">Letras, números, _ e - apenas</small>
+      </div>
+      <div class="add-form-field">
+        <label for="add-nome">Nome <span class="required">*</span></label>
+        <input id="add-nome" class="cell-input" placeholder="ex: Empresa XYZ" autocomplete="off" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-dono-id">Dono (Pessoa)</label>
+        <select id="add-dono-id"><option value="">— nenhum —</option>${pessoasOpts}</select>
+      </div>
+      <div class="add-form-field">
+        <label for="add-estado-id">Estado</label>
+        <select id="add-estado-id"><option value="">— nenhum —</option>${estadosOpts}</select>
+      </div>
+      <div class="add-form-field">
+        <label for="add-patrimonio">Patrimônio</label>
+        <input id="add-patrimonio" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-funcionarios">Funcionários</label>
+        <input id="add-funcionarios" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-renda">Renda</label>
+        <input id="add-renda" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-producao">Produção</label>
+        <input id="add-producao" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-moral-corp">Moral Corporativa</label>
+        <input id="add-moral-corp" class="cell-input num" type="number" min="0" max="5" step="0.1" value="3" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-rep-corp">Reputação Corp.</label>
+        <input id="add-rep-corp" class="cell-input num" type="number" min="0" max="5" step="0.1" value="3" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-lucro">Lucro</label>
+        <input id="add-lucro" class="cell-input num" type="number" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-salario-func">Salário Funcionário</label>
+        <input id="add-salario-func" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-manutencao">Manutenção</label>
+        <input id="add-manutencao" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-insumos">Insumos</label>
+        <input id="add-insumos" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+    </div>`;
+
+  } else if (type === 'estado') {
+    html = `<div class="add-form-grid">
+      <div class="add-form-field">
+        <label for="add-id">ID <span class="required">*</span></label>
+        <input id="add-id" class="cell-input" placeholder="ex: estado_01" autocomplete="off" />
+        <small style="color:var(--muted);font-size:0.7rem">Letras, números, _ e - apenas</small>
+      </div>
+      <div class="add-form-field">
+        <label for="add-nome">Nome <span class="required">*</span></label>
+        <input id="add-nome" class="cell-input" placeholder="ex: São Paulo" autocomplete="off" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-patrimonio">Patrimônio</label>
+        <input id="add-patrimonio" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-populacao">População</label>
+        <input id="add-populacao" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-fa">Forças Armadas</label>
+        <input id="add-fa" class="cell-input num" type="number" min="0" max="5" step="0.1" value="1" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-cultura">Cultura</label>
+        <input id="add-cultura" class="cell-input num" type="number" min="0" max="5" step="0.1" value="1" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-moral-pop">Moral Pop.</label>
+        <input id="add-moral-pop" class="cell-input num" type="number" min="0" max="5" step="0.1" value="3" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-renda-trib">Renda Tributária</label>
+        <input id="add-renda-trib" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-ir-pf">IR PF (0–1)</label>
+        <input id="add-ir-pf" class="cell-input num" type="number" min="0" max="1" step="0.01" value="0.15" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-ir-pj">IR PJ (0–1)</label>
+        <input id="add-ir-pj" class="cell-input num" type="number" min="0" max="1" step="0.01" value="0.20" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-imp-prod">Imp. Prod. (0–1)</label>
+        <input id="add-imp-prod" class="cell-input num" type="number" min="0" max="1" step="0.01" value="0.10" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-sal-pol">Salários Políticos</label>
+        <input id="add-sal-pol" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-incent-emp">Incentivos Empresas</label>
+        <input id="add-incent-emp" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-inv-cultura">Inv. Cultura</label>
+        <input id="add-inv-cultura" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+      <div class="add-form-field">
+        <label for="add-inv-fa">Inv. FA</label>
+        <input id="add-inv-fa" class="cell-input num" type="number" min="0" value="0" />
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('modal-add-form').innerHTML = html;
+
+  // Allow pressing Enter in any text input to submit
+  document.getElementById('modal-add-form').querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') saveAddModal(); });
+  });
+}
+
+/** Read a numeric field; return fallback if missing or NaN. */
+function getAddNum(id, fallback = 0) {
+  const el = document.getElementById(id);
+  if (!el) return fallback;
+  const v = parseFloat(el.value);
+  return Number.isFinite(v) ? v : fallback;
+}
+
+/** Show inline error in the add-entity modal. */
+function showAddError(msg) {
+  const el = document.getElementById('modal-add-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+/** Validate inputs, build the entity object, push to world and re-render. */
+function saveAddModal() {
+  const errEl = document.getElementById('modal-add-error');
+  errEl.style.display = 'none';
+
+  // ── Read & validate ID ──────────────────────────────────────────────────
+  const rawId = (document.getElementById('add-id')?.value ?? '').trim();
+  // Only allow letters, digits, underscores and hyphens (consistent with CSV key conventions)
+  if (rawId && !/^[a-zA-Z0-9_-]+$/.test(rawId)) {
+    showAddError('ID pode conter apenas letras, números, underscores (_) e hífens (-).');
+    document.getElementById('add-id')?.focus();
+    return;
+  }
+  const id = rawId;
+
+  const nome = (document.getElementById('add-nome')?.value ?? '').trim();
+
+  // ── Required field validation ────────────────────────────────────────────
+  if (!id) { showAddError('ID é obrigatório e não pode ser vazio.'); document.getElementById('add-id')?.focus(); return; }
+  if (!nome) { showAddError('Nome é obrigatório.'); document.getElementById('add-nome')?.focus(); return; }
+
+  // ── Unique ID check ──────────────────────────────────────────────────────
+  const arr = getEntityArray(addEntityType);
+  if (arr.some(x => x.id === id)) {
+    showAddError(`ID "${id}" já existe nesta lista. Escolha um ID único.`);
+    document.getElementById('add-id')?.focus();
+    return;
+  }
+
+  // ── Build entity object ──────────────────────────────────────────────────
+  let entity;
+
+  if (addEntityType === 'pessoa') {
+    const classe     = document.getElementById('add-classe')?.value || 'trabalhador';
+    const patrimonio = getAddNum('add-patrimonio', 1);
+    entity = {
+      id,
+      nome,
+      classe,
+      estado_id: document.getElementById('add-estado-id')?.value || '',
+      atributos: {
+        influencia: getAddNum('add-influencia', 1),
+        patrimonio,
+        moral:      getAddNum('add-moral', 3),
+        reputacao:  getAddNum('add-reputacao', 1),
+      },
+      renda_mensal: getAddNum('add-renda-mensal', 0),
+      caixa:        getAddNum('add-caixa', 0),
+      gastos_mensais_pagos: {
+        influencia: document.getElementById('add-gastos-influencia')?.checked ?? true,
+        moral:      document.getElementById('add-gastos-moral')?.checked ?? true,
+        reputacao:  document.getElementById('add-gastos-reputacao')?.checked ?? true,
+      },
+      ativos: { patrimonio_geral: patrimonio },
+    };
+
+  } else if (addEntityType === 'empresa') {
+    const patrimonio = getAddNum('add-patrimonio', 0);
+    entity = {
+      id,
+      nome,
+      dono_id:   document.getElementById('add-dono-id')?.value   || '',
+      estado_id: document.getElementById('add-estado-id')?.value || '',
+      patrimonio,
+      atributos: {
+        funcionarios:          getAddNum('add-funcionarios', 0),
+        renda:                 getAddNum('add-renda', 0),
+        producao:              getAddNum('add-producao', 0),
+        moral_corporativa:     getAddNum('add-moral-corp', 3),
+        reputacao_corporativa: getAddNum('add-rep-corp', 3),
+        lucro:                 getAddNum('add-lucro', 0),
+      },
+      custos: {
+        salario_funcionario: getAddNum('add-salario-func', 0),
+        manutencao:          getAddNum('add-manutencao', 0),
+        insumos:             getAddNum('add-insumos', 0),
+      },
+      ativos: { patrimonio_geral: patrimonio },
+    };
+
+  } else if (addEntityType === 'estado') {
+    const patrimonio = getAddNum('add-patrimonio', 0);
+    entity = {
+      id,
+      nome,
+      patrimonio,
+      atributos: {
+        populacao:       getAddNum('add-populacao', 0),
+        forcas_armadas:  getAddNum('add-fa', 1),
+        cultura:         getAddNum('add-cultura', 1),
+        moral_populacao: getAddNum('add-moral-pop', 3),
+      },
+      impostos: {
+        ir_pf:    getAddNum('add-ir-pf', 0.15),
+        ir_pj:    getAddNum('add-ir-pj', 0.20),
+        imp_prod: getAddNum('add-imp-prod', 0.10),
+      },
+      financas: {
+        renda_tributaria:     getAddNum('add-renda-trib', 0),
+        salarios_politicos:   getAddNum('add-sal-pol', 0),
+        incentivos_empresas:  getAddNum('add-incent-emp', 0),
+        investimento_cultura: getAddNum('add-inv-cultura', 0),
+        investimento_fa:      getAddNum('add-inv-fa', 0),
+      },
+      ativos: { patrimonio_geral: patrimonio },
+    };
+  }
+
+  if (!entity) return;
+
+  arr.push(entity);
+
+  if (addEntityType === 'pessoa')  renderPessoasTable();
+  if (addEntityType === 'empresa') renderEmpresasTable();
+  if (addEntityType === 'estado')  renderEstadosTable();
+
+  closeAddModal();
+  setStatus(`✅ ${addEntityType} "${esc(nome)}" adicionado(a) com sucesso.`);
+}
+
+function closeAddModal() {
+  document.getElementById('modal-add').classList.remove('open');
+  addEntityType = null;
+}
+
+document.getElementById('btn-add-pessoa').addEventListener('click', () => openAddModal('pessoa'));
+document.getElementById('btn-add-empresa').addEventListener('click', () => openAddModal('empresa'));
+document.getElementById('btn-add-estado').addEventListener('click', () => openAddModal('estado'));
+
+document.getElementById('btn-modal-add-save').addEventListener('click', saveAddModal);
+document.getElementById('btn-modal-add-cancel').addEventListener('click', closeAddModal);
+document.getElementById('modal-add').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-add')) closeAddModal();
+});
+
 // ── Util ─────────────────────────────────────────────────────────────────────
 /** Escape HTML to prevent injection in dynamically built markup. */
 function esc(str) {
