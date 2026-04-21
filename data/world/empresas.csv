@@ -1,3 +1,3 @@
-id,nome,dono_id,estado_id,funcionarios,renda,producao,moral_corporativa,reputacao_corporativa,lucro,salario_funcionario,manutencao,insumos
-empresa_01,Tech Exemplo SA,empresario_01,estado_sp,100,500000,1000,3,3,100000,2000,50000,100000
-empresa_02,Comércio RJ Ltda,empresario_01,estado_rj,30,120000,300,2,3,25000,1500,10000,30000
+id,nome,dono_id,estado_id,patrimonio,funcionarios,renda,producao,moral_corporativa,reputacao_corporativa,lucro,salario_funcionario,manutencao,insumos
+empresa_01,Tech Exemplo SA,empresario_01,estado_sp,500000,100,500000,1000,3,3,100000,2000,50000,100000
+empresa_02,Comércio RJ Ltda,empresario_01,estado_rj,150000,30,120000,300,2,3,25000,1500,10000,30000

@@ -7,150 +7,492 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1e2432;
+      --border:   #2d3748;
+      --text:     #e2e8f0;
+      --muted:    #94a3b8;
+      --accent:   #90cdf4;
+      --green:    #22c55e;
+      --blue:     #3b82f6;
+      --purple:   #6366f1;
+      --yellow:   #fcd34d;
+      --red:      #f87171;
+      --mono:     'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+    }
+
     body {
       font-family: system-ui, sans-serif;
-      background: #0f1117;
-      color: #e2e8f0;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
-      padding: 1.5rem;
-    }
-
-    h1 { font-size: 1.6rem; margin-bottom: 0.25rem; color: #f8fafc; }
-    p.subtitle { color: #94a3b8; margin-bottom: 1.5rem; font-size: 0.9rem; }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-      gap: 1rem;
-    }
-
-    .card {
-      background: #1e2432;
-      border: 1px solid #2d3748;
-      border-radius: 8px;
-      padding: 1rem;
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
     }
 
-    .card h2 { font-size: 1rem; color: #90cdf4; }
-
-    label { font-size: 0.8rem; color: #94a3b8; }
-
-    input[type="file"] {
-      width: 100%;
-      font-size: 0.8rem;
-      color: #e2e8f0;
-      background: #2d3748;
-      border: 1px solid #4a5568;
-      border-radius: 4px;
-      padding: 0.3rem 0.5rem;
-      cursor: pointer;
-    }
-
-    textarea {
-      width: 100%;
-      height: 200px;
-      background: #111827;
-      color: #d1fae5;
-      border: 1px solid #2d3748;
-      border-radius: 4px;
-      padding: 0.5rem;
-      font-family: monospace;
-      font-size: 0.75rem;
-      resize: vertical;
-    }
-
-    .actions {
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
       display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-size: 1.2rem;
+      color: #f8fafc;
+      white-space: nowrap;
+    }
+
+    .tick-bar {
+      display: flex;
+      align-items: center;
       gap: 0.75rem;
       flex-wrap: wrap;
-      margin: 1.5rem 0 1rem;
+      margin-left: auto;
     }
 
+    .tick-display {
+      background: #111827;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.3rem 0.9rem;
+      font-size: 0.85rem;
+      color: var(--yellow);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
     button {
-      padding: 0.55rem 1.2rem;
+      padding: 0.45rem 1rem;
       border: none;
       border-radius: 6px;
-      font-size: 0.9rem;
+      font-size: 0.82rem;
       cursor: pointer;
       font-weight: 600;
       transition: opacity 0.15s;
+      white-space: nowrap;
     }
     button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    #btn-tick   { background: #22c55e; color: #052e16; }
-    #btn-export { background: #3b82f6; color: #eff6ff; }
-    #btn-defaults { background: #6366f1; color: #eef2ff; }
+    .btn-green  { background: var(--green);  color: #052e16; }
+    .btn-blue   { background: var(--blue);   color: #eff6ff; }
+    .btn-purple { background: var(--purple); color: #eef2ff; }
+    .btn-red    { background: var(--red);    color: #1a0000; }
+    .btn-ghost  { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+    .btn-sm     { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
 
-    #log-container {
-      background: #111827;
-      border: 1px solid #2d3748;
-      border-radius: 8px;
-      padding: 1rem;
-      margin-top: 1rem;
+    /* ── Tabs ────────────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
     }
-    #log-container h2 { font-size: 1rem; color: #fcd34d; margin-bottom: 0.5rem; }
-    #log {
-      font-family: monospace;
+
+    .tab-btn {
+      padding: 0.65rem 1.2rem;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); opacity: 1; }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Tab content ─────────────────────────────────────────────────────── */
+    main { flex: 1; padding: 1.25rem; overflow: auto; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Import bar ──────────────────────────────────────────────────────── */
+    .import-bar {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+
+    .import-bar label { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+
+    input[type="file"] {
+      font-size: 0.78rem;
+      color: var(--text);
+      background: #2d3748;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      cursor: pointer;
+    }
+
+    /* ── Tables ──────────────────────────────────────────────────────────── */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    thead th {
+      background: #111827;
+      color: var(--accent);
+      text-align: left;
+      padding: 0.5rem 0.7rem;
       font-size: 0.75rem;
-      white-space: pre-wrap;
-      color: #86efac;
-      max-height: 260px;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr { border-bottom: 1px solid #1a2030; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #232b3e; }
+
+    td {
+      padding: 0.4rem 0.7rem;
+      color: var(--text);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    td.num { text-align: right; font-family: var(--mono); }
+    td.id-cell { color: var(--muted); font-family: var(--mono); font-size: 0.72rem; }
+    td.badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 99px;
+      display: inline-block;
+    }
+
+    .cell-input {
+      background: #111827;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: var(--text);
+      font-size: 0.8rem;
+      padding: 0.2rem 0.4rem;
+      width: 100%;
+      min-width: 60px;
+      font-family: inherit;
+    }
+    .cell-input:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+    .cell-input.num {
+      text-align: right;
+      font-family: var(--mono);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    /* ── Modal ───────────────────────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      min-width: 380px;
+      max-width: 90vw;
+      max-height: 85vh;
       overflow-y: auto;
     }
 
-    .status-bar {
-      margin-top: 0.75rem;
-      font-size: 0.8rem;
-      color: #64748b;
+    .modal h3 { font-size: 1rem; color: var(--accent); margin-bottom: 1rem; }
+
+    .modal-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      justify-content: flex-end;
     }
+
+    .ativos-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+    .ativos-row input { flex: 1; }
+    .patrimonio-sum {
+      font-size: 0.82rem;
+      color: var(--yellow);
+      margin: 0.5rem 0;
+    }
+
+    /* ── Schedule tab ────────────────────────────────────────────────────── */
+    .schedule-section { margin-bottom: 2rem; }
+    .schedule-section h3 {
+      font-size: 0.95rem;
+      color: var(--yellow);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .tick-select-bar {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .tick-select-bar label { font-size: 0.8rem; color: var(--muted); }
+
+    input[type="number"], select {
+      background: #2d3748;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 0.3rem 0.6rem;
+      font-size: 0.82rem;
+    }
+    input[type="number"]:focus, select:focus { border-color: var(--accent); outline: none; }
+
+    .entity-type-tabs {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+    .entity-type-btn {
+      padding: 0.3rem 0.9rem;
+      border-radius: 20px;
+      background: #2d3748;
+      border: none;
+      color: var(--muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .entity-type-btn:hover { opacity: 0.85; }
+    .entity-type-btn.active { background: var(--accent); color: #0f1117; }
+
+    .matrix-table th { min-width: 130px; }
+    .matrix-table td { text-align: center; }
+
+    .injection-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr auto;
+      gap: 0.5rem;
+      align-items: end;
+      margin-bottom: 1rem;
+    }
+    .injection-form label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 0.25rem; }
+    @media (max-width: 700px) {
+      .injection-form { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── Log ─────────────────────────────────────────────────────────────── */
+    #log {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      white-space: pre-wrap;
+      color: #86efac;
+      background: #111827;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      max-height: 65vh;
+      overflow-y: auto;
+    }
+
+    /* ── Status bar ──────────────────────────────────────────────────────── */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 0.4rem 1.5rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    /* ── Misc ────────────────────────────────────────────────────────────── */
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+    .badge-trabalhador { background: #374151; color: #9ca3af; }
+    .badge-empresario  { background: #1e3a5f; color: #93c5fd; }
+    .badge-politico    { background: #3b2a5f; color: #c4b5fd; }
+    .badge-jogador     { background: #1a3a2a; color: #6ee7b7; }
   </style>
 </head>
 <body>
-  <h1>⚽ The Matchday Tales — Mini Economic Model</h1>
-  <p class="subtitle">Simulador econômico mensal • Carregue os CSVs, rode ticks e exporte.</p>
 
-  <div class="actions">
-    <button id="btn-defaults">📂 Carregar exemplos padrão</button>
-    <button id="btn-tick">▶ Rodar Tick Mensal</button>
-    <button id="btn-export">⬇ Exportar CSVs</button>
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<header>
+  <h1>⚽ The Matchday Tales</h1>
+  <div class="tick-bar">
+    <div class="tick-display">Tick <span id="tick-counter">0</span></div>
+    <button id="btn-defaults" class="btn-purple">📂 Carregar Exemplos</button>
+    <button id="btn-tick"     class="btn-green" >▶ Rodar Tick</button>
+    <button id="btn-export"   class="btn-blue"  >⬇ Exportar CSVs</button>
   </div>
+</header>
 
-  <div class="grid">
-    <div class="card">
-      <h2>👥 Pessoas</h2>
-      <label for="file-pessoas">Carregar pessoas.csv</label>
+<!-- ── Tab nav ──────────────────────────────────────────────────────────── -->
+<nav class="tabs" role="tablist">
+  <button class="tab-btn active" data-tab="pessoas"    role="tab">👥 Pessoas</button>
+  <button class="tab-btn"        data-tab="empresas"   role="tab">🏢 Empresas</button>
+  <button class="tab-btn"        data-tab="estados"    role="tab">🗺 Estados</button>
+  <button class="tab-btn"        data-tab="agendamento" role="tab">📅 Agendamentos</button>
+  <button class="tab-btn"        data-tab="log"        role="tab">📋 Log</button>
+</nav>
+
+<!-- ── Main content ─────────────────────────────────────────────────────── -->
+<main>
+
+  <!-- ── Pessoas ──────────────────────────────────────────────────────── -->
+  <section id="tab-pessoas" class="tab-panel active" role="tabpanel">
+    <div class="import-bar">
+      <label for="file-pessoas">Importar pessoas.csv</label>
       <input type="file" id="file-pessoas" accept=".csv" />
-      <label for="ta-pessoas">Conteúdo CSV</label>
-      <textarea id="ta-pessoas" spellcheck="false" placeholder="Carregue ou cole o CSV de pessoas aqui…"></textarea>
+      <label for="file-ativos-pessoas" style="margin-left:0.5rem">Importar ativos.csv</label>
+      <input type="file" id="file-ativos"  accept=".csv" />
     </div>
+    <div id="table-pessoas"><div class="empty-state">Nenhuma pessoa carregada. Use "Carregar Exemplos" ou importe um CSV.</div></div>
+  </section>
 
-    <div class="card">
-      <h2>🏢 Empresas</h2>
-      <label for="file-empresas">Carregar empresas.csv</label>
+  <!-- ── Empresas ─────────────────────────────────────────────────────── -->
+  <section id="tab-empresas" class="tab-panel" role="tabpanel">
+    <div class="import-bar">
+      <label for="file-empresas">Importar empresas.csv</label>
       <input type="file" id="file-empresas" accept=".csv" />
-      <label for="ta-empresas">Conteúdo CSV</label>
-      <textarea id="ta-empresas" spellcheck="false" placeholder="Carregue ou cole o CSV de empresas aqui…"></textarea>
     </div>
+    <div id="table-empresas"><div class="empty-state">Nenhuma empresa carregada.</div></div>
+  </section>
 
-    <div class="card">
-      <h2>🗺 Estados</h2>
-      <label for="file-estados">Carregar estados.csv</label>
+  <!-- ── Estados ──────────────────────────────────────────────────────── -->
+  <section id="tab-estados" class="tab-panel" role="tabpanel">
+    <div class="import-bar">
+      <label for="file-estados">Importar estados.csv</label>
       <input type="file" id="file-estados" accept=".csv" />
-      <label for="ta-estados">Conteúdo CSV</label>
-      <textarea id="ta-estados" spellcheck="false" placeholder="Carregue ou cole o CSV de estados aqui…"></textarea>
+    </div>
+    <div id="table-estados"><div class="empty-state">Nenhum estado carregado.</div></div>
+  </section>
+
+  <!-- ── Agendamentos ─────────────────────────────────────────────────── -->
+  <section id="tab-agendamento" class="tab-panel" role="tabpanel">
+
+    <!-- Conversões agendadas -->
+    <div class="schedule-section">
+      <h3>🔄 Conversões Agendadas</h3>
+
+      <div class="tick-select-bar">
+        <label for="sched-tick">Tick alvo:</label>
+        <input type="number" id="sched-tick" min="0" value="1" style="width:80px" />
+
+        <div class="entity-type-tabs">
+          <button class="entity-type-btn active" data-etype="pessoa" >👥 Pessoas</button>
+          <button class="entity-type-btn"        data-etype="empresa">🏢 Empresas</button>
+          <button class="entity-type-btn"        data-etype="estado" >🗺 Estados</button>
+        </div>
+      </div>
+
+      <div id="conversion-matrix">
+        <div class="empty-state">Carregue os dados primeiro.</div>
+      </div>
+    </div>
+
+    <!-- Aportes esporádicos -->
+    <div class="schedule-section">
+      <h3>💰 Aportes Esporádicos</h3>
+
+      <div class="injection-form">
+        <div>
+          <label for="inj-type">Tipo</label>
+          <select id="inj-type">
+            <option value="pessoa">Pessoa</option>
+            <option value="empresa">Empresa</option>
+            <option value="estado">Estado</option>
+          </select>
+        </div>
+        <div>
+          <label for="inj-entity">Entidade</label>
+          <select id="inj-entity" style="width:100%"></select>
+        </div>
+        <div>
+          <label for="inj-amount">Valor</label>
+          <input type="number" id="inj-amount" min="0" step="1000" value="0" style="width:130px" />
+        </div>
+        <div>
+          <label for="inj-tick">Tick</label>
+          <input type="number" id="inj-tick" min="0" value="1" style="width:80px" />
+        </div>
+        <div>
+          <label class="sr-only">Ação</label>
+          <button id="btn-add-injection" class="btn-green" style="height:100%">+ Agendar</button>
+        </div>
+      </div>
+
+      <div id="injections-list">
+        <div class="empty-state">Nenhum aporte agendado.</div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ── Log ──────────────────────────────────────────────────────────── -->
+  <section id="tab-log" class="tab-panel" role="tabpanel">
+    <div id="log">Nenhum tick executado ainda.</div>
+  </section>
+
+</main>
+
+<footer>
+  <span id="status">Pronto.</span>
+</footer>
+
+<!-- ── Ativos Modal ──────────────────────────────────────────────────────── -->
+<div id="modal-ativos" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h3 id="modal-title">💎 Ativos</h3>
+    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem">
+      Edite os ativos abaixo. O patrimônio é recalculado automaticamente como a soma dos valores.
+    </p>
+    <div id="modal-ativos-rows"></div>
+    <div class="patrimonio-sum">Patrimônio total: <strong id="modal-patrimonio-sum">0</strong></div>
+    <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem">
+      <input id="new-ativo-id"    placeholder="nome do ativo (ex: imoveis)" style="flex:2;background:#111827;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:0.3rem 0.5rem;font-size:0.8rem" />
+      <input id="new-ativo-valor" type="number" placeholder="valor" style="flex:1;background:#111827;border:1px solid var(--border);border-radius:4px;color:var(--text);padding:0.3rem 0.5rem;font-size:0.8rem" />
+      <button id="btn-add-ativo" class="btn-ghost btn-sm">+ Adicionar</button>
+    </div>
+    <div class="modal-actions">
+      <button id="btn-modal-cancel" class="btn-ghost">Cancelar</button>
+      <button id="btn-modal-save"   class="btn-blue" >Salvar</button>
     </div>
   </div>
+</div>
 
-  <div id="log-container">
-    <h2>📋 Log do Último Tick</h2>
-    <div id="log">Nenhum tick executado ainda.</div>
-  </div>
-
-  <p class="status-bar" id="status">Pronto.</p>
-
-  <script type="module" src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

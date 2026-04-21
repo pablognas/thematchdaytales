@@ -1,3 +1,3 @@
-id,nome,populacao,forcas_armadas,cultura,moral_populacao,renda_tributaria,ir_pf,ir_pj,imp_prod,salarios_politicos,incentivos_empresas,investimento_cultura,investimento_fa
-estado_sp,São Paulo,12000000,3,4,3,5000000,0.15,0.20,0.10,50000,100000,50000,100000
-estado_rj,Rio de Janeiro,6700000,2,5,2,2500000,0.15,0.20,0.10,30000,50000,80000,40000
+id,nome,patrimonio,populacao,forcas_armadas,cultura,moral_populacao,renda_tributaria,ir_pf,ir_pj,imp_prod,salarios_politicos,incentivos_empresas,investimento_cultura,investimento_fa
+estado_sp,São Paulo,10000000,12000000,3,4,3,5000000,0.15,0.20,0.10,50000,100000,50000,100000
+estado_rj,Rio de Janeiro,3000000,6700000,2,5,2,2500000,0.15,0.20,0.10,30000,50000,80000,40000
