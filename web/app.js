@@ -680,6 +680,404 @@ function esc(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ── Add Entity Modal ──────────────────────────────────────────────────────────
+
+const NEW_ID_PATTERN = /^[a-z][a-z0-9_\-]{2,64}$/;
+let addEntityType = null;
+
+function validateNewEntityId(id, type) {
+  if (!id) return 'ID é obrigatório.';
+  if (!NEW_ID_PATTERN.test(id)) {
+    return 'ID inválido: comece com letra minúscula; use a-z, 0-9, _ ou - (3–65 chars).';
+  }
+  if (getEntityArray(type).some(x => x.id === id)) {
+    return `ID "${id}" já existe em ${type}.`;
+  }
+  return null;
+}
+
+function openAddEntityModal(type) {
+  addEntityType = type;
+  const label = type === 'pessoa'  ? '👤 Adicionar Pessoa'
+              : type === 'empresa' ? '🏢 Adicionar Empresa'
+              : '🗺 Adicionar Estado';
+  document.getElementById('modal-add-title').textContent = label;
+  document.getElementById('modal-add-form').innerHTML = buildAddEntityForm(type);
+  bindAddEntityFormEvents(type);
+  document.getElementById('modal-add-entity').classList.add('open');
+}
+
+function closeAddEntityModal() {
+  document.getElementById('modal-add-entity').classList.remove('open');
+  addEntityType = null;
+}
+
+function buildAddEntityForm(type) {
+  const idRow = `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-id">ID <span style="color:var(--red)">*</span></label>
+        <input id="nef-id" class="cell-input" placeholder="${esc(type)}_01" autocomplete="off" />
+        <div id="nef-id-error" class="form-error"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-nome">Nome <span style="color:var(--red)">*</span></label>
+        <input id="nef-nome" class="cell-input" placeholder="Nome" />
+        <div id="nef-nome-error" class="form-error"></div>
+      </div>
+    </div>`;
+  if (type === 'pessoa')  return idRow + buildPessoaForm();
+  if (type === 'empresa') return idRow + buildEmpresaForm();
+  return idRow + buildEstadoForm();
+}
+
+function buildPessoaForm() {
+  const classes  = config ? (config.classes.classes || []) : [];
+  const estados  = world.estados;
+  const classOpts = classes.map(c =>
+    `<option value="${esc(c.id)}">${esc(c.nome)}</option>`
+  ).join('') || '<option value="trabalhador">Trabalhador</option>';
+  const estadoOpts = estados.map(s =>
+    `<option value="${esc(s.id)}">${esc(s.nome || s.id)}</option>`
+  ).join('');
+  return `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-classe">Classe</label>
+        <select id="nef-classe" class="cell-input">${classOpts}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-estado">Estado</label>
+        <select id="nef-estado" class="cell-input">
+          <option value="">— nenhum —</option>
+          ${estadoOpts}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-influencia">Influência</label>
+        <input id="nef-influencia" class="cell-input num" type="number" min="0" max="5" step="1" value="1" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-patrimonio">Patrimônio</label>
+        <input id="nef-patrimonio" class="cell-input num" type="number" min="0" step="1" value="1" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-moral">Moral</label>
+        <input id="nef-moral" class="cell-input num" type="number" min="0" max="5" step="1" value="3" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-reputacao">Reputação</label>
+        <input id="nef-reputacao" class="cell-input num" type="number" min="0" max="5" step="1" value="1" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-renda">Renda Mensal</label>
+        <input id="nef-renda" class="cell-input num" type="number" min="0" step="100" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-caixa">Caixa</label>
+        <input id="nef-caixa" class="cell-input num" type="number" step="100" value="0" />
+      </div>
+    </div>
+    <p class="form-section-label">Gastos mensais pagos:</p>
+    <div class="form-row">
+      <div class="form-group form-group-inline">
+        <input type="checkbox" id="nef-gasto-infl" checked />
+        <label class="form-label" for="nef-gasto-infl">Influência</label>
+      </div>
+      <div class="form-group form-group-inline">
+        <input type="checkbox" id="nef-gasto-moral" checked />
+        <label class="form-label" for="nef-gasto-moral">Moral</label>
+      </div>
+      <div class="form-group form-group-inline">
+        <input type="checkbox" id="nef-gasto-rep" checked />
+        <label class="form-label" for="nef-gasto-rep">Reputação</label>
+      </div>
+    </div>`;
+}
+
+function buildEmpresaForm() {
+  const pessoas  = world.pessoas;
+  const estados  = world.estados;
+  const pessoaOpts = pessoas.map(p =>
+    `<option value="${esc(p.id)}">${esc(p.nome || p.id)}</option>`
+  ).join('');
+  const estadoOpts = estados.map(s =>
+    `<option value="${esc(s.id)}">${esc(s.nome || s.id)}</option>`
+  ).join('');
+  return `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-dono">Dono</label>
+        <select id="nef-dono" class="cell-input">
+          <option value="">— nenhum —</option>
+          ${pessoaOpts}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-estado">Estado</label>
+        <select id="nef-estado" class="cell-input">
+          <option value="">— nenhum —</option>
+          ${estadoOpts}
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-patrimonio">Patrimônio</label>
+        <input id="nef-patrimonio" class="cell-input num" type="number" min="0" step="1000" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-funcionarios">Funcionários</label>
+        <input id="nef-funcionarios" class="cell-input num" type="number" min="0" step="1" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-renda">Renda</label>
+        <input id="nef-renda" class="cell-input num" type="number" min="0" step="100" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-producao">Produção</label>
+        <input id="nef-producao" class="cell-input num" type="number" min="0" step="1" value="0" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-moral-corp">Moral Corp.</label>
+        <input id="nef-moral-corp" class="cell-input num" type="number" min="0" max="5" step="0.1" value="3" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-rep-corp">Reputação Corp.</label>
+        <input id="nef-rep-corp" class="cell-input num" type="number" min="0" max="5" step="0.1" value="3" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-lucro">Lucro</label>
+        <input id="nef-lucro" class="cell-input num" type="number" step="100" value="0" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-salario">Salário/Func.</label>
+        <input id="nef-salario" class="cell-input num" type="number" min="0" step="100" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-manut">Manutenção</label>
+        <input id="nef-manut" class="cell-input num" type="number" min="0" step="100" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-insumos">Insumos</label>
+        <input id="nef-insumos" class="cell-input num" type="number" min="0" step="100" value="0" />
+      </div>
+    </div>`;
+}
+
+function buildEstadoForm() {
+  return `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-populacao">População</label>
+        <input id="nef-populacao" class="cell-input num" type="number" min="0" step="1000" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-patrimonio">Patrimônio</label>
+        <input id="nef-patrimonio" class="cell-input num" type="number" min="0" step="1000" value="0" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-fa">Forças Arm.</label>
+        <input id="nef-fa" class="cell-input num" type="number" min="0" max="5" step="0.1" value="1" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-cultura">Cultura</label>
+        <input id="nef-cultura" class="cell-input num" type="number" min="0" max="5" step="0.1" value="1" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-moral-pop">Moral Pop.</label>
+        <input id="nef-moral-pop" class="cell-input num" type="number" min="0" max="5" step="0.1" value="3" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-renda-trib">Renda Tributária</label>
+        <input id="nef-renda-trib" class="cell-input num" type="number" min="0" step="1000" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-ir-pf">IR PF (0–1)</label>
+        <input id="nef-ir-pf" class="cell-input num" type="number" min="0" max="1" step="0.01" value="0.1" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-ir-pj">IR PJ (0–1)</label>
+        <input id="nef-ir-pj" class="cell-input num" type="number" min="0" max="1" step="0.01" value="0.1" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-imp-prod">Imp. Prod. (0–1)</label>
+        <input id="nef-imp-prod" class="cell-input num" type="number" min="0" max="1" step="0.01" value="0.05" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-sal-pol">Sal. Políticos</label>
+        <input id="nef-sal-pol" class="cell-input num" type="number" min="0" step="1000" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-incent-emp">Incent. Emp.</label>
+        <input id="nef-incent-emp" class="cell-input num" type="number" min="0" step="1000" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-inv-cultura">Inv. Cultura</label>
+        <input id="nef-inv-cultura" class="cell-input num" type="number" min="0" step="1000" value="0" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-inv-fa">Inv. FA</label>
+        <input id="nef-inv-fa" class="cell-input num" type="number" min="0" step="1000" value="0" />
+      </div>
+    </div>`;
+}
+
+function bindAddEntityFormEvents(type) {
+  const idInput = document.getElementById('nef-id');
+  idInput.addEventListener('input', () => {
+    const err = validateNewEntityId(idInput.value.trim(), type);
+    document.getElementById('nef-id-error').textContent = err || '';
+  });
+  if (type === 'pessoa') {
+    const classeEl = document.getElementById('nef-classe');
+    classeEl.addEventListener('change', () => prefillPessoaAtributos(classeEl.value));
+    prefillPessoaAtributos(classeEl.value);
+  }
+}
+
+function prefillPessoaAtributos(classeId) {
+  if (!config) return;
+  const classe = (config.classes.classes || []).find(c => c.id === classeId);
+  if (!classe || !classe.limites_atributos) return;
+  const lim = classe.limites_atributos;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  set('nef-influencia', lim.influencia ? lim.influencia.min : 1);
+  set('nef-patrimonio', lim.patrimonio ? lim.patrimonio.min : 1);
+  set('nef-moral',      lim.moral      ? lim.moral.min      : 3);
+  set('nef-reputacao',  lim.reputacao  ? lim.reputacao.min  : 1);
+}
+
+function saveNewEntity() {
+  const type = addEntityType;
+  const id   = document.getElementById('nef-id').value.trim();
+  const nome = document.getElementById('nef-nome').value.trim();
+
+  const idErr = validateNewEntityId(id, type);
+  if (idErr) {
+    document.getElementById('nef-id-error').textContent = idErr;
+    document.getElementById('nef-id').focus();
+    return;
+  }
+  if (!nome) {
+    document.getElementById('nef-nome-error').textContent = 'Nome é obrigatório.';
+    document.getElementById('nef-nome').focus();
+    return;
+  }
+
+  if (type === 'pessoa') {
+    const patrimonio = parseFloat(document.getElementById('nef-patrimonio').value) || 1;
+    world.pessoas.push({
+      id,
+      nome,
+      classe:    document.getElementById('nef-classe').value,
+      estado_id: document.getElementById('nef-estado').value,
+      atributos: {
+        influencia: parseFloat(document.getElementById('nef-influencia').value) || 1,
+        patrimonio,
+        moral:      parseFloat(document.getElementById('nef-moral').value)      || 3,
+        reputacao:  parseFloat(document.getElementById('nef-reputacao').value)  || 1,
+      },
+      renda_mensal: parseFloat(document.getElementById('nef-renda').value)  || 0,
+      caixa:        parseFloat(document.getElementById('nef-caixa').value)  || 0,
+      gastos_mensais_pagos: {
+        influencia: document.getElementById('nef-gasto-infl').checked,
+        moral:      document.getElementById('nef-gasto-moral').checked,
+        reputacao:  document.getElementById('nef-gasto-rep').checked,
+      },
+      ativos: { patrimonio_geral: patrimonio },
+    });
+    renderPessoasTable();
+  } else if (type === 'empresa') {
+    const patrimonio = parseFloat(document.getElementById('nef-patrimonio').value) || 0;
+    world.empresas.push({
+      id,
+      nome,
+      dono_id:   document.getElementById('nef-dono').value,
+      estado_id: document.getElementById('nef-estado').value,
+      patrimonio,
+      atributos: {
+        funcionarios:          parseFloat(document.getElementById('nef-funcionarios').value) || 0,
+        renda:                 parseFloat(document.getElementById('nef-renda').value)        || 0,
+        producao:              parseFloat(document.getElementById('nef-producao').value)     || 0,
+        moral_corporativa:     parseFloat(document.getElementById('nef-moral-corp').value)  || 3,
+        reputacao_corporativa: parseFloat(document.getElementById('nef-rep-corp').value)    || 3,
+        lucro:                 parseFloat(document.getElementById('nef-lucro').value)        || 0,
+      },
+      custos: {
+        salario_funcionario: parseFloat(document.getElementById('nef-salario').value) || 0,
+        manutencao:          parseFloat(document.getElementById('nef-manut').value)   || 0,
+        insumos:             parseFloat(document.getElementById('nef-insumos').value) || 0,
+      },
+      ativos: { patrimonio_geral: patrimonio },
+    });
+    renderEmpresasTable();
+  } else if (type === 'estado') {
+    const patrimonio = parseFloat(document.getElementById('nef-patrimonio').value) || 0;
+    world.estados.push({
+      id,
+      nome,
+      patrimonio,
+      atributos: {
+        populacao:       parseFloat(document.getElementById('nef-populacao').value)  || 0,
+        forcas_armadas:  parseFloat(document.getElementById('nef-fa').value)         || 1,
+        cultura:         parseFloat(document.getElementById('nef-cultura').value)    || 1,
+        moral_populacao: parseFloat(document.getElementById('nef-moral-pop').value)  || 3,
+      },
+      impostos: {
+        ir_pf:    parseFloat(document.getElementById('nef-ir-pf').value)    || 0,
+        ir_pj:    parseFloat(document.getElementById('nef-ir-pj').value)    || 0,
+        imp_prod: parseFloat(document.getElementById('nef-imp-prod').value) || 0,
+      },
+      financas: {
+        renda_tributaria:     parseFloat(document.getElementById('nef-renda-trib').value)   || 0,
+        salarios_politicos:   parseFloat(document.getElementById('nef-sal-pol').value)      || 0,
+        incentivos_empresas:  parseFloat(document.getElementById('nef-incent-emp').value)   || 0,
+        investimento_cultura: parseFloat(document.getElementById('nef-inv-cultura').value)  || 0,
+        investimento_fa:      parseFloat(document.getElementById('nef-inv-fa').value)       || 0,
+      },
+      ativos: { patrimonio_geral: patrimonio },
+    });
+    renderEstadosTable();
+  }
+
+  closeAddEntityModal();
+  const typeLabel = type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
+  setStatus(`✅ ${typeLabel} "${id}" adicionado(a).`);
+}
+
+document.getElementById('btn-add-entity-save').addEventListener('click', saveNewEntity);
+document.getElementById('btn-add-entity-cancel').addEventListener('click', closeAddEntityModal);
+document.getElementById('modal-add-entity').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-add-entity')) closeAddEntityModal();
+});
+
+document.getElementById('btn-add-pessoa').addEventListener('click', async () => {
+  await loadConfig();
+  openAddEntityModal('pessoa');
+});
+document.getElementById('btn-add-empresa').addEventListener('click', async () => {
+  await loadConfig();
+  openAddEntityModal('empresa');
+});
+document.getElementById('btn-add-estado').addEventListener('click', () => {
+  openAddEntityModal('estado');
+});
+
 // ── Initialise ────────────────────────────────────────────────────────────────
 updateTickCounter();
 populateInjectionEntitySelect();
