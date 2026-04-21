@@ -93,9 +93,10 @@ function applyPessoaConversion(pessoa, conversionId, config) {
   pessoa.atributos[de]  = (pessoa.atributos[de]  || 0) - 1;
   pessoa.atributos[para] = (pessoa.atributos[para] || 0) + taxa;
 
-  // If patrimonio was involved, resync ativos
+  // If patrimonio was involved, resync ativos while preserving other assets
   if (de === 'patrimonio' || para === 'patrimonio') {
-    pessoa.ativos = { patrimonio_geral: pessoa.atributos.patrimonio };
+    if (!pessoa.ativos) pessoa.ativos = {};
+    pessoa.ativos.patrimonio_geral = pessoa.atributos.patrimonio;
   }
 
   return `[Conversão] ${pessoa.nome}: -1 ${de} +${taxa} ${para}`;

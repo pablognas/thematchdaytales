@@ -98,12 +98,17 @@ function saveInjections(list) {
   localStorage.setItem(KEY_INJECTIONS, JSON.stringify(list));
 }
 
-/** Generate a unique ID, preferring crypto.randomUUID() when available. */
+/** Generate a unique ID, preferring crypto.randomUUID() when available.
+ * Note: the fallback uses Math.random() which is NOT cryptographically secure;
+ * it is only used in environments that predate crypto.randomUUID() (released ~2022).
+ * IDs are used solely as localStorage keys to identify scheduled injections and
+ * are never used in security-sensitive contexts.
+ */
 function genId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  // Fallback for environments without crypto.randomUUID
+  // Fallback: combine timestamp + two random segments for uniqueness.
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
 }
 
