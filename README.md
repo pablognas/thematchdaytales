@@ -65,7 +65,7 @@ thematchdaytales/
 
 1. Open `/web/index.html` via an HTTP server (see above).
 2. Click **📂 Carregar Exemplos** to load the bundled example CSVs (including `ativos.csv`), **or** use the file inputs in each tab to upload your own CSVs.
-3. Use the **Pessoas / Empresas / Estados** tabs to view and edit entity data in HTML tables. Click the **💎** button in any row to edit that entity's assets (ativos) in a modal.
+3. Use the **Pessoas / Empresas / Estados** tabs to view and edit entity data in HTML tables. In the **Estados** tab, `tipo` and `parent_id` (hierarchy dropdown) are editable inline; the export validates that no unit is its own parent. Click the **💎** button in any row to edit that entity's assets (ativos) in a modal.
 4. Use the **📅 Agendamentos** tab to:
    - Schedule attribute conversions for a specific tick using the checkbox matrix.
    - Schedule one-time financial injections via the injection form.
@@ -116,11 +116,16 @@ thematchdaytales/
 
 ### `estados.csv`
 
+> **Nota:** O termo "estado" neste projeto não se refere exclusivamente a estados federativos. Um objeto _estado_ representa qualquer **entidade governamental / nível de governo** — município, província, estado, país, reino, principado, ducado, território, etc. Estados podem conter outros estados, formando uma **hierarquia** via `parent_id`.
+
 | Field | Type | Description |
 |---|---|---|
 | `id` | string | Unique identifier |
-| `nome` | string | State name |
-| `patrimonio` | number | **NEW** Total state wealth — auto-recomputed from ativos sum |
+| `nome` | string | Government unit name |
+| `tipo` | string | Type of government unit (e.g. `municipio`, `provincia`, `estado`, `pais`, `reino`, `principado`). Free-text; may be empty. |
+| `parent_id` | string | `id` of the parent government unit (empty = root / no parent). Must refer to an existing `id` if non-empty. Must not equal own `id`. |
+| `descricao` | string | Optional free-text description |
+| `patrimonio` | number | **Auto-recomputed from ativos sum** |
 | `populacao` | integer | Population count |
 | `forcas_armadas` | number (1-5) | Military strength |
 | `cultura` | number (1-5) | Cultural development level |
@@ -129,10 +134,24 @@ thematchdaytales/
 | `ir_pf` | decimal (0-1) | Income tax rate for individuals (e.g. `0.15` = 15%) |
 | `ir_pj` | decimal (0-1) | Corporate tax rate (e.g. `0.20` = 20%) |
 | `imp_prod` | decimal (0-1) | Product tax rate |
-| `salarios_politicos` | number | Monthly salary paid to each politician in this state |
+| `salarios_politicos` | number | Monthly salary paid to each politician in this unit |
 | `incentivos_empresas` | number | Monthly business incentive budget |
 | `investimento_cultura` | number | Monthly culture investment budget |
 | `investimento_fa` | number | Monthly armed-forces investment budget |
+
+**Hierarchy rules:**
+- `parent_id` may be left empty for root-level units (e.g. a sovereign country).
+- `parent_id` must refer to an existing `id` in the same file if non-empty.
+- A unit may not be its own parent (`parent_id` ≠ `id`). The UI enforces this and the exporter blocks self-parent entries.
+
+**Example hierarchy:**
+
+```
+brasil (pais)
+├── estado_sp (estado)
+│   └── sp_capital (municipio)
+└── estado_rj (estado)
+```
 
 ### `ativos.csv` (NEW)
 
