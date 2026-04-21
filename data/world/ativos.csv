@@ -1,0 +1,17 @@
+owner_type,owner_id,ativo_id,valor
+pessoa,neymar_exemplo,imoveis,3000000
+pessoa,neymar_exemplo,investimentos,1500000
+pessoa,neymar_exemplo,carros,500000
+pessoa,trabalhador_01,poupanca,1
+pessoa,politico_01,imoveis,1
+pessoa,politico_01,dividas,-1
+pessoa,empresario_01,participacoes_empresariais,3
+pessoa,empresario_01,imoveis,1
+empresa,empresa_01,equipamentos,300000
+empresa,empresa_01,imoveis_comerciais,200000
+empresa,empresa_02,estoques,100000
+empresa,empresa_02,equipamentos,50000
+estado,estado_sp,reservas,8000000
+estado,estado_sp,infraestrutura,2000000
+estado,estado_rj,reservas,2500000
+estado,estado_rj,infraestrutura,500000
