@@ -354,7 +354,7 @@ function bindTableInputs(container) {
       const { entity, idx, field } = input.dataset;
       const obj = getEntityArray(entity)[parseInt(idx)];
       if (!obj) return;
-      setNestedField(obj, field, input.type === 'number' ? parseFloat(input.value) : input.value);
+      setEntityField(obj, field, input.type === 'number' ? parseFloat(input.value) : input.value);
     });
   });
 
@@ -364,7 +364,7 @@ function bindTableInputs(container) {
       const { entity, idx, field } = cb.dataset;
       const obj = getEntityArray(entity)[parseInt(idx)];
       if (!obj) return;
-      setNestedField(obj, field, cb.checked);
+      setEntityField(obj, field, cb.checked);
     });
   });
 
@@ -381,36 +381,58 @@ function getEntityArray(type) {
   return [];
 }
 
-/** Exact set of field paths that table inputs are allowed to update. */
-const ALLOWED_FIELD_PATHS = new Set([
-  'nome', 'estado_id',
-  'atributos.influencia', 'atributos.moral', 'atributos.reputacao',
-  'atributos.funcionarios', 'atributos.renda', 'atributos.producao',
-  'atributos.moral_corporativa', 'atributos.reputacao_corporativa', 'atributos.lucro',
-  'atributos.populacao', 'atributos.forcas_armadas', 'atributos.cultura', 'atributos.moral_populacao',
-  'renda_mensal', 'caixa',
-  'gastos_mensais_pagos.influencia', 'gastos_mensais_pagos.moral', 'gastos_mensais_pagos.reputacao',
-  'custos.salario_funcionario', 'custos.manutencao', 'custos.insumos',
-  'financas.renda_tributaria', 'financas.salarios_politicos', 'financas.incentivos_empresas',
-  'financas.investimento_cultura', 'financas.investimento_fa',
-  'impostos.ir_pf', 'impostos.ir_pj', 'impostos.imp_prod',
-]);
-
 /**
- * Set a whitelisted nested field on an entity object.
- * Only paths in ALLOWED_FIELD_PATHS are accepted; intermediate objects must
- * already exist (no new objects are created), preventing prototype pollution.
+ * Explicit dispatch table mapping data-field paths to typed setters.
+ * This avoids dynamic bracket-notation property assignment (prototype-pollution risk).
+ * Only paths listed here can be updated via table inputs.
  */
-function setNestedField(obj, path, value) {
-  if (!ALLOWED_FIELD_PATHS.has(path)) return;
-  const parts = path.split('.');
-  let cur = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    const sub = cur[parts[i]];
-    if (sub === null || typeof sub !== 'object') return;
-    cur = sub;
-  }
-  cur[parts[parts.length - 1]] = value;
+const FIELD_SETTERS = {
+  // Shared text
+  nome:      (e, v) => { e.nome      = v; },
+  estado_id: (e, v) => { e.estado_id = v; },
+  // Pessoa atributos
+  'atributos.influencia': (e, v) => { e.atributos.influencia = v; },
+  'atributos.moral':      (e, v) => { e.atributos.moral      = v; },
+  'atributos.reputacao':  (e, v) => { e.atributos.reputacao  = v; },
+  // Empresa atributos
+  'atributos.funcionarios':          (e, v) => { e.atributos.funcionarios          = v; },
+  'atributos.renda':                 (e, v) => { e.atributos.renda                 = v; },
+  'atributos.producao':              (e, v) => { e.atributos.producao              = v; },
+  'atributos.moral_corporativa':     (e, v) => { e.atributos.moral_corporativa     = v; },
+  'atributos.reputacao_corporativa': (e, v) => { e.atributos.reputacao_corporativa = v; },
+  'atributos.lucro':                 (e, v) => { e.atributos.lucro                 = v; },
+  // Estado atributos
+  'atributos.populacao':       (e, v) => { e.atributos.populacao       = v; },
+  'atributos.forcas_armadas':  (e, v) => { e.atributos.forcas_armadas  = v; },
+  'atributos.cultura':         (e, v) => { e.atributos.cultura         = v; },
+  'atributos.moral_populacao': (e, v) => { e.atributos.moral_populacao = v; },
+  // Pessoa top-level
+  renda_mensal: (e, v) => { e.renda_mensal = v; },
+  caixa:        (e, v) => { e.caixa        = v; },
+  // Pessoa gastos
+  'gastos_mensais_pagos.influencia': (e, v) => { e.gastos_mensais_pagos.influencia = v; },
+  'gastos_mensais_pagos.moral':      (e, v) => { e.gastos_mensais_pagos.moral      = v; },
+  'gastos_mensais_pagos.reputacao':  (e, v) => { e.gastos_mensais_pagos.reputacao  = v; },
+  // Empresa custos
+  'custos.salario_funcionario': (e, v) => { e.custos.salario_funcionario = v; },
+  'custos.manutencao':          (e, v) => { e.custos.manutencao          = v; },
+  'custos.insumos':             (e, v) => { e.custos.insumos             = v; },
+  // Estado financas
+  'financas.renda_tributaria':     (e, v) => { e.financas.renda_tributaria     = v; },
+  'financas.salarios_politicos':   (e, v) => { e.financas.salarios_politicos   = v; },
+  'financas.incentivos_empresas':  (e, v) => { e.financas.incentivos_empresas  = v; },
+  'financas.investimento_cultura': (e, v) => { e.financas.investimento_cultura = v; },
+  'financas.investimento_fa':      (e, v) => { e.financas.investimento_fa      = v; },
+  // Estado impostos
+  'impostos.ir_pf':    (e, v) => { e.impostos.ir_pf    = v; },
+  'impostos.ir_pj':    (e, v) => { e.impostos.ir_pj    = v; },
+  'impostos.imp_prod': (e, v) => { e.impostos.imp_prod = v; },
+};
+
+/** Apply a known field update to an entity. Ignores unknown paths. */
+function setEntityField(entity, field, value) {
+  const setter = FIELD_SETTERS[field];
+  if (setter) setter(entity, value);
 }
 
 // ── Ativos Modal ─────────────────────────────────────────────────────────────
@@ -435,7 +457,7 @@ function renderAtivosModalRows() {
   for (const [id, valor] of Object.entries(modalAtivos)) {
     html += `<div class="ativos-row">
       <input class="cell-input" readonly value="${esc(id)}" style="flex:2;background:transparent;border:none;color:var(--muted)" />
-      <input class="cell-input num" type="number" data-ativo-id="${esc(id)}" value="${valor}" style="flex:1" />
+      <input class="cell-input num" type="number" aria-label="Valor do ativo ${esc(id)}" data-ativo-id="${esc(id)}" value="${Number(valor) || 0}" style="flex:1" />
       <button class="btn-red btn-sm btn-remove-ativo" data-ativo-id="${esc(id)}">×</button>
     </div>`;
   }
