@@ -344,6 +344,50 @@
     .badge-empresario  { background: #1e3a5f; color: #93c5fd; }
     .badge-politico    { background: #3b2a5f; color: #c4b5fd; }
     .badge-jogador     { background: #1a3a2a; color: #6ee7b7; }
+
+    /* ── Add Entity Modal Form ───────────────────────────────────────────── */
+    .modal-add { min-width: 480px; }
+
+    .form-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      flex: 1;
+      min-width: 110px;
+    }
+
+    .form-group-inline {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+      flex: unset;
+      min-width: unset;
+    }
+
+    .form-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .form-error {
+      font-size: 0.72rem;
+      color: var(--red);
+      min-height: 1em;
+    }
+
+    .form-section-label {
+      font-size: 0.78rem;
+      color: var(--yellow);
+      margin-bottom: 0.25rem;
+    }
   </style>
 </head>
 <body>
@@ -378,6 +422,7 @@
       <input type="file" id="file-pessoas" accept=".csv" />
       <label for="file-ativos-pessoas" style="margin-left:0.5rem">Importar ativos.csv</label>
       <input type="file" id="file-ativos"  accept=".csv" />
+      <button id="btn-add-pessoa" class="btn-green btn-sm" style="margin-left:auto">+ Adicionar Pessoa</button>
     </div>
     <div id="table-pessoas"><div class="empty-state">Nenhuma pessoa carregada. Use "Carregar Exemplos" ou importe um CSV.</div></div>
   </section>
@@ -387,6 +432,7 @@
     <div class="import-bar">
       <label for="file-empresas">Importar empresas.csv</label>
       <input type="file" id="file-empresas" accept=".csv" />
+      <button id="btn-add-empresa" class="btn-green btn-sm" style="margin-left:auto">+ Adicionar Empresa</button>
     </div>
     <div id="table-empresas"><div class="empty-state">Nenhuma empresa carregada.</div></div>
   </section>
@@ -396,6 +442,7 @@
     <div class="import-bar">
       <label for="file-estados">Importar estados.csv</label>
       <input type="file" id="file-estados" accept=".csv" />
+      <button id="btn-add-estado" class="btn-green btn-sm" style="margin-left:auto">+ Adicionar Estado</button>
     </div>
     <div id="table-estados"><div class="empty-state">Nenhum estado carregado.</div></div>
   </section>
@@ -489,6 +536,18 @@
     <div class="modal-actions">
       <button id="btn-modal-cancel" class="btn-ghost">Cancelar</button>
       <button id="btn-modal-save"   class="btn-blue" >Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Entity Modal ─────────────────────────────────────────────────── -->
+<div id="modal-add-entity" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-add-title">
+  <div class="modal modal-add">
+    <h3 id="modal-add-title">Adicionar</h3>
+    <div id="modal-add-form"></div>
+    <div class="modal-actions">
+      <button id="btn-add-entity-cancel" class="btn-ghost">Cancelar</button>
+      <button id="btn-add-entity-save"   class="btn-green">Salvar</button>
     </div>
   </div>
 </div>
