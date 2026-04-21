@@ -381,19 +381,36 @@ function getEntityArray(type) {
   return [];
 }
 
+/** Exact set of field paths that table inputs are allowed to update. */
+const ALLOWED_FIELD_PATHS = new Set([
+  'nome', 'estado_id',
+  'atributos.influencia', 'atributos.moral', 'atributos.reputacao',
+  'atributos.funcionarios', 'atributos.renda', 'atributos.producao',
+  'atributos.moral_corporativa', 'atributos.reputacao_corporativa', 'atributos.lucro',
+  'atributos.populacao', 'atributos.forcas_armadas', 'atributos.cultura', 'atributos.moral_populacao',
+  'renda_mensal', 'caixa',
+  'gastos_mensais_pagos.influencia', 'gastos_mensais_pagos.moral', 'gastos_mensais_pagos.reputacao',
+  'custos.salario_funcionario', 'custos.manutencao', 'custos.insumos',
+  'financas.renda_tributaria', 'financas.salarios_politicos', 'financas.incentivos_empresas',
+  'financas.investimento_cultura', 'financas.investimento_fa',
+  'impostos.ir_pf', 'impostos.ir_pj', 'impostos.imp_prod',
+]);
+
+/**
+ * Set a whitelisted nested field on an entity object.
+ * Only paths in ALLOWED_FIELD_PATHS are accepted; intermediate objects must
+ * already exist (no new objects are created), preventing prototype pollution.
+ */
 function setNestedField(obj, path, value) {
-  const BLOCKED = new Set(['__proto__', 'constructor', 'prototype']);
+  if (!ALLOWED_FIELD_PATHS.has(path)) return;
   const parts = path.split('.');
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    const key = parts[i];
-    if (BLOCKED.has(key)) return;
-    if (cur[key] === null || typeof cur[key] !== 'object') cur[key] = {};
-    cur = cur[key];
+    const sub = cur[parts[i]];
+    if (sub === null || typeof sub !== 'object') return;
+    cur = sub;
   }
-  const lastKey = parts[parts.length - 1];
-  if (BLOCKED.has(lastKey)) return;
-  cur[lastKey] = value;
+  cur[parts[parts.length - 1]] = value;
 }
 
 // ── Ativos Modal ─────────────────────────────────────────────────────────────
@@ -450,7 +467,7 @@ function updateModalSum() {
 document.getElementById('btn-add-ativo').addEventListener('click', () => {
   const idInput  = document.getElementById('new-ativo-id');
   const valInput = document.getElementById('new-ativo-valor');
-  const id  = idInput.value.trim().replace(/\s+/g, '_');
+  const id  = idInput.value.trim().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/^_+|_+$/g, '');
   const val = parseFloat(valInput.value) || 0;
   if (!id) { idInput.focus(); return; }
   modalAtivos[id] = val;

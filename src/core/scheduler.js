@@ -98,6 +98,15 @@ function saveInjections(list) {
   localStorage.setItem(KEY_INJECTIONS, JSON.stringify(list));
 }
 
+/** Generate a unique ID, preferring crypto.randomUUID() when available. */
+function genId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
 /**
  * Schedule a one-time financial injection.
  * @param {number} tick
@@ -108,7 +117,7 @@ function saveInjections(list) {
 export function scheduleInjection(tick, ownerType, ownerId, amount) {
   const list = loadInjections();
   list.push({
-    id: crypto.randomUUID(),
+    id: genId(),
     tick,
     ownerType,
     ownerId,
