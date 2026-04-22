@@ -751,7 +751,7 @@ function deleteEntity(type, id) {
   if (type === 'pessoa') {
     const deps = world.empresas.filter(e => e.dono_id === id);
     if (deps.length) {
-      const names = deps.map(e => `"${esc(e.id)}"`).join(', ');
+      const names = deps.map(e => `"${e.id}"`).join(', ');
       setStatus(`⛔ Não é possível excluir: a pessoa "${id}" é dona de empresa(s): ${names}. Remova a referência antes.`);
       return;
     }
