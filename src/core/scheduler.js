@@ -150,3 +150,19 @@ export function getInjectionsForTick(tick) {
 export function clearInjectionsForTick(tick) {
   saveInjections(loadInjections().filter(x => x.tick !== tick));
 }
+
+/** Remove all scheduled conversions belonging to a specific entity.
+ * @param {'pessoa'|'empresa'|'estado'} ownerType
+ * @param {string} ownerId
+ */
+export function removeAllConversionsForEntity(ownerType, ownerId) {
+  saveConversions(loadConversions().filter(x => !(x.ownerType === ownerType && x.ownerId === ownerId)));
+}
+
+/** Remove all scheduled injections belonging to a specific entity.
+ * @param {'pessoa'|'empresa'|'estado'} ownerType
+ * @param {string} ownerId
+ */
+export function removeAllInjectionsForEntity(ownerType, ownerId) {
+  saveInjections(loadInjections().filter(x => !(x.ownerType === ownerType && x.ownerId === ownerId)));
+}
