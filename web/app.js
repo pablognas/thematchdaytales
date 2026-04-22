@@ -31,6 +31,7 @@ import {
   getCurrentTick, setCurrentTick, advanceTick,
   scheduleConversion, unscheduleConversion, getAllScheduledConversions, getConversionsForTick, clearConversionsForTick,
   scheduleInjection, removeInjection, getAllScheduledInjections, getInjectionsForTick, clearInjectionsForTick,
+  removeAllConversionsForEntity, removeAllInjectionsForEntity,
 } from '../src/core/scheduler.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
@@ -243,7 +244,7 @@ function renderPessoasTable() {
       <th>Influência</th><th>Patrimônio</th><th>Moral</th><th>Reputação</th>
       <th>Renda Mensal</th><th>Caixa</th>
       <th>Gasto Infl.</th><th>Gasto Moral</th><th>Gasto Rep.</th>
-      <th>Ativos</th>
+      <th>Ativos</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
@@ -264,6 +265,7 @@ function renderPessoasTable() {
       <td style="text-align:center"><input type="checkbox" data-entity="pessoa" data-idx="${i}" data-field="gastos_mensais_pagos.moral" ${pessoa.gastos_mensais_pagos.moral ? 'checked' : ''} /></td>
       <td style="text-align:center"><input type="checkbox" data-entity="pessoa" data-idx="${i}" data-field="gastos_mensais_pagos.reputacao" ${pessoa.gastos_mensais_pagos.reputacao ? 'checked' : ''} /></td>
       <td><button class="btn-ghost btn-sm btn-ativos" data-etype="pessoa" data-eid="${esc(pessoa.id)}">💎 ${Object.keys(pessoa.ativos || {}).length}</button></td>
+      <td><button class="btn-red btn-sm btn-delete-entity" data-etype="pessoa" data-eid="${esc(pessoa.id)}">🗑 Excluir</button></td>
     </tr>`;
   }
 
@@ -287,7 +289,7 @@ function renderEmpresasTable() {
       <th>Patrimônio</th><th>Funcionários</th><th>Renda</th><th>Produção</th>
       <th>Moral Corp.</th><th>Rep. Corp.</th><th>Lucro</th>
       <th>Sal. Func.</th><th>Manutenção</th><th>Insumos</th>
-      <th>Ativos</th>
+      <th>Ativos</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
@@ -308,6 +310,7 @@ function renderEmpresasTable() {
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="custos.manutencao" value="${emp.custos.manutencao}" style="width:90px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="custos.insumos" value="${emp.custos.insumos}" style="width:90px" /></td>
       <td><button class="btn-ghost btn-sm btn-ativos" data-etype="empresa" data-eid="${esc(emp.id)}">💎 ${Object.keys(emp.ativos || {}).length}</button></td>
+      <td><button class="btn-red btn-sm btn-delete-entity" data-etype="empresa" data-eid="${esc(emp.id)}">🗑 Excluir</button></td>
     </tr>`;
   }
 
@@ -332,7 +335,7 @@ function renderEstadosTable() {
       <th>Populacão</th><th>Forças Arm.</th><th>Cultura</th><th>Moral Pop.</th>
       <th>Renda Trib.</th><th>IR PF</th><th>IR PJ</th><th>Imp. Prod.</th>
       <th>Sal. Pol.</th><th>Incent. Emp.</th><th>Inv. Cultura</th><th>Inv. FA</th>
-      <th>Ativos</th>
+      <th>Ativos</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
@@ -368,6 +371,7 @@ function renderEstadosTable() {
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_cultura" value="${est.financas.investimento_cultura}" style="width:90px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_fa" value="${est.financas.investimento_fa}" style="width:80px" /></td>
       <td><button class="btn-ghost btn-sm btn-ativos" data-etype="estado" data-eid="${esc(est.id)}">💎 ${Object.keys(est.ativos || {}).length}</button></td>
+      <td><button class="btn-red btn-sm btn-delete-entity" data-etype="estado" data-eid="${esc(est.id)}">🗑 Excluir</button></td>
     </tr>`;
   }
 
@@ -416,6 +420,11 @@ function bindTableInputs(container) {
   // Ativos buttons
   container.querySelectorAll('.btn-ativos').forEach(btn => {
     btn.addEventListener('click', () => openAtivosModal(btn.dataset.etype, btn.dataset.eid));
+  });
+
+  // Delete entity buttons
+  container.querySelectorAll('.btn-delete-entity').forEach(btn => {
+    btn.addEventListener('click', () => deleteEntity(btn.dataset.etype, btn.dataset.eid));
   });
 }
 
@@ -727,6 +736,65 @@ function esc(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// ── Delete Entity ─────────────────────────────────────────────────────────────
+
+/**
+ * Attempt to delete an entity from the world state.
+ * Performs dependency checks before removal and cleans up scheduled items.
+ * @param {'pessoa'|'empresa'|'estado'} type
+ * @param {string} id
+ */
+function deleteEntity(type, id) {
+  // ── Dependency checks (block if references exist) ──────────────────────
+  if (type === 'pessoa') {
+    const deps = world.empresas.filter(e => e.dono_id === id);
+    if (deps.length) {
+      const names = deps.map(e => `"${esc(e.id)}"`).join(', ');
+      setStatus(`⛔ Não é possível excluir: a pessoa "${id}" é dona de empresa(s): ${names}. Remova a referência antes.`);
+      return;
+    }
+  }
+
+  if (type === 'estado') {
+    const msgs = [];
+    const pessoasDeps  = world.pessoas.filter(p => p.estado_id === id);
+    const empresasDeps = world.empresas.filter(e => e.estado_id === id);
+    const estadosDeps  = world.estados.filter(s => s.parent_id === id);
+    if (pessoasDeps.length)  msgs.push(`pessoas: ${pessoasDeps.map(x => `"${x.id}"`).join(', ')}`);
+    if (empresasDeps.length) msgs.push(`empresas: ${empresasDeps.map(x => `"${x.id}"`).join(', ')}`);
+    if (estadosDeps.length)  msgs.push(`estados filhos: ${estadosDeps.map(x => `"${x.id}"`).join(', ')}`);
+    if (msgs.length) {
+      setStatus(`⛔ Não é possível excluir o estado "${id}". Dependências: ${msgs.join('; ')}.`);
+      return;
+    }
+  }
+
+  // ── Confirmation dialog ────────────────────────────────────────────────
+  const typeLabel  = type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
+  const entity     = getEntityArray(type).find(x => x.id === id);
+  const displayName = entity ? (entity.nome || entity.id) : id;
+  if (!window.confirm(`Excluir ${typeLabel} "${displayName}" (${id})?\nEsta ação não pode ser desfeita.`)) return;
+
+  // ── Remove from world ─────────────────────────────────────────────────
+  if (type === 'pessoa') {
+    world.pessoas = world.pessoas.filter(x => x.id !== id);
+    renderPessoasTable();
+  } else if (type === 'empresa') {
+    world.empresas = world.empresas.filter(x => x.id !== id);
+    renderEmpresasTable();
+  } else {
+    world.estados = world.estados.filter(x => x.id !== id);
+    renderEstadosTable();
+  }
+
+  // ── Remove scheduled conversions and injections for this entity ────────
+  removeAllConversionsForEntity(type, id);
+  removeAllInjectionsForEntity(type, id);
+  renderInjectionsList();
+
+  setStatus(`🗑 ${typeLabel} "${id}" excluído(a).`);
 }
 
 // ── Add Entity Modal ──────────────────────────────────────────────────────────
