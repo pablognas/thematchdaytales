@@ -281,7 +281,144 @@ export function applyScheduledInjections(scheduledInjections, world) {
   return log;
 }
 
-// ── Monthly tick ──────────────────────────────────────────────────────────
+// ── Transfers ─────────────────────────────────────────────────────────────
+
+/**
+ * Get the liquid cash field of an entity by type.
+ * @param {Object} entity
+ * @param {'pessoa'|'empresa'|'estado'} type
+ * @returns {number}
+ */
+function getEntityCash(entity, type) {
+  if (type === 'pessoa')  return entity.caixa;
+  if (type === 'empresa') return entity.atributos.lucro;
+  if (type === 'estado')  return entity.financas.renda_tributaria;
+  return 0;
+}
+
+/**
+ * Mutate the liquid cash field of an entity by type.
+ * @param {Object} entity
+ * @param {'pessoa'|'empresa'|'estado'} type
+ * @param {number} delta
+ */
+function adjustEntityCash(entity, type, delta) {
+  if (type === 'pessoa')  entity.caixa                        += delta;
+  if (type === 'empresa') entity.atributos.lucro               += delta;
+  if (type === 'estado')  entity.financas.renda_tributaria     += delta;
+}
+
+/**
+ * Get the entities array from the world for a given type key.
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[] }} world
+ * @param {'pessoa'|'empresa'|'estado'} type
+ * @returns {Object[]}
+ */
+function worldArrayFor(world, type) {
+  if (type === 'pessoa')  return world.pessoas;
+  if (type === 'empresa') return world.empresas;
+  if (type === 'estado')  return world.estados;
+  return [];
+}
+
+/**
+ * Transfer liquid funds (caixa / lucro / renda_tributaria) between two entities.
+ *
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[] }} world
+ * @param {'pessoa'|'empresa'|'estado'} srcType
+ * @param {string} srcId
+ * @param {'pessoa'|'empresa'|'estado'} dstType
+ * @param {string} dstId
+ * @param {number} amount  positive value
+ * @returns {{ ok: boolean, msg: string }}
+ */
+export function transferFundos(world, srcType, srcId, dstType, dstId, amount) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, msg: 'O valor deve ser positivo.' };
+  }
+  if (srcType === dstType && srcId === dstId) {
+    return { ok: false, msg: 'Origem e destino são a mesma entidade.' };
+  }
+
+  const src = worldArrayFor(world, srcType).find(e => e.id === srcId);
+  const dst = worldArrayFor(world, dstType).find(e => e.id === dstId);
+
+  if (!src) return { ok: false, msg: `Entidade origem "${srcId}" não encontrada.` };
+  if (!dst) return { ok: false, msg: `Entidade destino "${dstId}" não encontrada.` };
+
+  const srcCash = getEntityCash(src, srcType);
+  if (srcCash < amount) {
+    return { ok: false, msg: `Fundos insuficientes: "${src.nome}" possui ${srcCash.toLocaleString('pt-BR')}, solicitado ${amount.toLocaleString('pt-BR')}.` };
+  }
+
+  adjustEntityCash(src, srcType, -amount);
+  adjustEntityCash(dst, dstType, +amount);
+
+  return {
+    ok: true,
+    msg: `[Transferência de Fundos] ${src.nome} → ${dst.nome}: ${amount.toLocaleString('pt-BR')}`,
+  };
+}
+
+/**
+ * Transfer patrimônio (assets/wealth) between two entities.
+ * Reduces the source patrimônio_geral ativo (or spreads the reduction across all ativos),
+ * adds to destination patrimônio_geral, and reconciles patrimônio on both sides.
+ *
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[] }} world
+ * @param {'pessoa'|'empresa'|'estado'} srcType
+ * @param {string} srcId
+ * @param {'pessoa'|'empresa'|'estado'} dstType
+ * @param {string} dstId
+ * @param {number} amount  positive value
+ * @returns {{ ok: boolean, msg: string }}
+ */
+export function transferPatrimonio(world, srcType, srcId, dstType, dstId, amount) {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, msg: 'O valor deve ser positivo.' };
+  }
+  if (srcType === dstType && srcId === dstId) {
+    return { ok: false, msg: 'Origem e destino são a mesma entidade.' };
+  }
+
+  const src = worldArrayFor(world, srcType).find(e => e.id === srcId);
+  const dst = worldArrayFor(world, dstType).find(e => e.id === dstId);
+
+  if (!src) return { ok: false, msg: `Entidade origem "${srcId}" não encontrada.` };
+  if (!dst) return { ok: false, msg: `Entidade destino "${dstId}" não encontrada.` };
+
+  const srcPatrimonio = srcType === 'pessoa' ? src.atributos.patrimonio : src.patrimonio;
+  if (srcPatrimonio < amount) {
+    return { ok: false, msg: `Patrimônio insuficiente: "${src.nome}" possui ${srcPatrimonio.toLocaleString('pt-BR')}, solicitado ${amount.toLocaleString('pt-BR')}.` };
+  }
+
+  // Deduct from source ativos: reduce patrimonio_geral first, then other entries
+  src.ativos = src.ativos || {};
+  let remaining = amount;
+  const keys = ['patrimonio_geral', ...Object.keys(src.ativos).filter(k => k !== 'patrimonio_geral')];
+  for (const key of keys) {
+    const val = src.ativos[key] || 0;
+    if (val <= 0) continue;
+    const deduct = Math.min(val, remaining);
+    src.ativos[key] = val - deduct;
+    remaining -= deduct;
+    if (remaining <= 0) break;
+  }
+
+  // Credit destination
+  dst.ativos = dst.ativos || {};
+  dst.ativos.patrimonio_geral = (dst.ativos.patrimonio_geral || 0) + amount;
+
+  reconcilePatrimonio(src, srcType);
+  reconcilePatrimonio(dst, dstType);
+
+  return {
+    ok: true,
+    msg: `[Transferência de Patrimônio] ${src.nome} → ${dst.nome}: ${amount.toLocaleString('pt-BR')}`,
+  };
+}
+
+
 
 /**
  * Run one monthly tick, mutating world objects in place.
