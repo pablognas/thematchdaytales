@@ -41,18 +41,22 @@ thematchdaytales/
 │   │   ├── atributos.json
 │   │   ├── conversoes.json
 │   │   ├── fluxos_economicos.json
-│   │   └── produtos.json
-│   └── world/                # Example mutable world state (CSV)
+│   │   ├── produtos.json
+│   │   ├── biomas.json       # ← NEW: list of biome names for the map editor
+│   │   └── climas.json       # ← NEW: list of climate names for the map editor
+│   └── world/                # Example mutable world state (CSV + JSON)
 │       ├── pessoas.csv
 │       ├── empresas.csv
 │       ├── estados.csv
-│       └── ativos.csv        # ← NEW: assets for all entity types
+│       ├── ativos.csv
+│       └── mapa.json         # ← NEW: sparse world map (lat → lon → cell)
 ├── src/
 │   └── core/                 # Browser-safe ESM modules
 │       ├── csv.js            # CSV parse / unparse / download
 │       ├── world.js          # Row <-> typed-object converters + ativos helpers
 │       ├── engine.js         # Monthly tick logic + conversion/injection handlers
-│       └── scheduler.js      # ← NEW: localStorage-based tick scheduler
+│       ├── scheduler.js      # localStorage-based tick scheduler
+│       └── map.js            # ← NEW: getCell / setCell / clearCell / findCellsByEstado
 ├── web/                      # Static web app
 │   ├── index.html
 │   └── app.js
@@ -66,12 +70,13 @@ thematchdaytales/
 1. Open `/web/index.html` via an HTTP server (see above).
 2. Click **📂 Carregar Exemplos** to load the bundled example CSVs (including `ativos.csv`), **or** use the file inputs in each tab to upload your own CSVs.
 3. Use the **Pessoas / Empresas / Estados** tabs to view and edit entity data in HTML tables. In the **Estados** tab, `tipo` and `parent_id` (hierarchy dropdown) are editable inline; the export validates that no unit is its own parent. Click the **💎** button in any row to edit that entity's assets (ativos) in a modal.
+4. Use the **🧭 Mapa** tab to paint the world map (see *Map Editor* section below).
 4. Use the **📅 Agendamentos** tab to:
    - Schedule attribute conversions for a specific tick using the checkbox matrix.
    - Schedule one-time financial injections via the injection form.
 5. Click **▶ Rodar Tick** to execute one month. The tick counter increments automatically.
 6. View the simulation log in the **📋 Log** tab.
-7. Click **⬇ Exportar CSVs** to download all four updated CSV files.
+7. Click **⬇ Exportar CSVs** to download all four updated CSV files. Use **⬇ Exportar mapa.json** inside the Mapa tab to download the map separately.
 
 ---
 
@@ -221,6 +226,78 @@ Each tick performs the following steps **in order**:
 
 ---
 
+## Map Editor (🧭 Mapa)
+
+### `data/world/mapa.json`
+
+The world map is stored as a **sparse JSON object** — only cells that have been explicitly painted are stored.
+
+**Format:** first key = latitude (string, integer -90..90), second key = longitude (string, integer -180..180).
+
+```json
+{
+  "10": {
+    "-50": { "tipo": "terra", "estado_id": "br_sp", "bioma": "mata_atlantica", "clima": "tropical" },
+    "-51": { "tipo": "terra", "estado_id": "br_sp" }
+  },
+  "9": {
+    "-50": { "tipo": "agua", "estado_id": "br", "bioma": "oceano" }
+  }
+}
+```
+
+**Cell fields (all optional):**
+
+| Field | Values | Description |
+|---|---|---|
+| `tipo` | `"agua"` \| `"terra"` | Cell type (water or land). If absent, cell is unpainted. |
+| `estado_id` | any estado `id` | Government unit associated with the cell. Allowed even when `tipo = "agua"` (mar territorial). |
+| `bioma` | string | Biome name (from `data/config/biomas.json`). |
+| `clima` | string | Climate name (from `data/config/climas.json`). |
+
+Empty cells (no fields set) are removed automatically to keep the file sparse.
+
+### Viewport & Navigation
+
+- **Initial viewport:** 60 columns (longitude) × 30 rows (latitude).
+- **Center controls:** `lat` and `lon` number inputs set the visible centre.
+- **Pan buttons (↑↓←→):** shift the viewport 10° at a time.
+- **Zoom (+ / −):** expands or shrinks the viewport by 10 lon columns and 5 lat rows per step, keeping the centre fixed.
+- **Coordinate rulers:** longitude values appear across the top (every 10°), latitude values along the left (every 5°).
+
+### Brush Painting
+
+1. Select cell properties in the **🖌 Pincel** panel (tipo, estado, bioma, clima).
+2. Use the **checkboxes** next to each field to lock/unlock which fields the brush applies.  
+   ✅ **Checked = locked** → that field will be written when painting.  
+   ⬜ **Unchecked** → that field is untouched when painting over existing cells.
+3. **Click and drag** over cells to paint them with the current brush.
+4. Enable **🧹 Borracha** to erase cells (removes the cell from the map entirely).
+
+### Cell Editor
+
+Click a single cell (without dragging) to open the **📍 Célula** editor panel. It shows the current values for that cell and allows individual field edits. Press **✔ Salvar** to commit or **🗑 Limpar** to remove the cell entirely.
+
+### Config Lists
+
+| File | Purpose |
+|---|---|
+| `data/config/biomas.json` | Array of biome name strings shown in the Bioma select |
+| `data/config/climas.json` | Array of climate name strings shown in the Clima select |
+
+Edit these files to add or remove options without changing any code.
+
+### Import / Export
+
+- **📂 Importar** (toolbar): load a `mapa.json` file from disk, replacing the current map.
+- **⬇ Exportar mapa.json** (toolbar): download the current map as `mapa.json`.
+
+### Deletion Validation
+
+Deleting a government unit (Estado) is **blocked** if any map cell has `estado_id` referencing it — on land *or* water. The status bar will report the number of cells and a sample of their coordinates `(lat, lon)`.
+
+---
+
 ## JSON Config Files
 
 | File | Purpose |
@@ -230,6 +307,8 @@ Each tick performs the following steps **in order**:
 | `conversoes.json` | Rules for converting between attributes (including class bonuses) |
 | `fluxos_economicos.json` | Descriptive list of economic flows (documentation reference) |
 | `produtos.json` | Purchasable goods and their attribute effects |
+| `biomas.json` | Biome names available in the Map editor |
+| `climas.json` | Climate names available in the Map editor |
 
 ---
 

@@ -33,6 +33,7 @@ import {
   scheduleInjection, removeInjection, getAllScheduledInjections, getInjectionsForTick, clearInjectionsForTick,
   removeAllConversionsForEntity, removeAllInjectionsForEntity,
 } from '../src/core/scheduler.js';
+import { getCell, setCell, clearCell, findCellsByEstado } from '../src/core/map.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
@@ -45,6 +46,21 @@ let scheduleEntityType = 'pessoa';
 let modalEntityType = null;
 let modalEntityId   = null;
 let modalAtivos     = {};
+
+// ── Map state ──────────────────────────────────────────────────────────────
+let mapaWorld  = {};          // sparse map data (lat → lon → cell)
+let mapaConfig = null;        // { biomas: string[], climas: string[] }
+
+// Viewport: center + dimensions (columns = lon count, rows = lat count)
+let mapaVp = { latCenter: 0, lonCenter: 0, rows: 30, cols: 60 };
+
+// Brush state
+let mapaBrushDown   = false;  // is mouse button held on the grid?
+let mapaDragMoved   = false;  // did the pointer move while held?
+let mapaSelectedCell = null;  // { lat, lon } of currently selected cell for editor
+let mapaBrushValues  = { tipo: '', estado_id: '', bioma: '', clima: '' };
+let mapaBrushLocks   = { tipo: true, estado_id: false, bioma: false, clima: false };
+let mapaEraserMode   = false;
 
 // ── Config loader ──────────────────────────────────────────────────────────
 async function loadConfig() {
@@ -85,6 +101,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
     if (btn.dataset.tab === 'agendamento') renderScheduleTab();
+    if (btn.dataset.tab === 'mapa')        initMapaTab();
   });
 });
 
@@ -135,16 +152,18 @@ document.getElementById('btn-defaults').addEventListener('click', async () => {
   try {
     setStatus('Carregando exemplos padrão…');
     await loadConfig();
-    const [pCsv, eCsv, sCsv, aCsv] = await Promise.all([
+    const [pCsv, eCsv, sCsv, aCsv, mJson] = await Promise.all([
       fetch('../data/world/pessoas.csv').then(r => r.text()),
       fetch('../data/world/empresas.csv').then(r => r.text()),
       fetch('../data/world/estados.csv').then(r => r.text()),
       fetch('../data/world/ativos.csv').then(r => r.text()).catch(() => ''),
+      fetch('../data/world/mapa.json').then(r => r.json()).catch(() => ({})),
     ]);
     world.pessoas  = rowsToPessoas(parseCsv(pCsv));
     world.empresas = rowsToEmpresas(parseCsv(eCsv));
     world.estados  = rowsToEstados(parseCsv(sCsv));
     if (aCsv) applyAtivos(world, parseCsv(aCsv));
+    mapaWorld = mJson;
     renderAll();
     setStatus('✅ Exemplos padrão carregados.');
   } catch (err) {
@@ -227,6 +246,7 @@ function renderAll() {
   renderEmpresasTable();
   renderEstadosTable();
   updateTickCounter();
+  populateMapaEstadoSelects();
 }
 
 // ── Pessoas table ────────────────────────────────────────────────────────────
@@ -765,6 +785,12 @@ function deleteEntity(type, id) {
     if (pessoasDeps.length)  msgs.push(`pessoas: ${pessoasDeps.map(x => `"${x.id}"`).join(', ')}`);
     if (empresasDeps.length) msgs.push(`empresas: ${empresasDeps.map(x => `"${x.id}"`).join(', ')}`);
     if (estadosDeps.length)  msgs.push(`estados filhos: ${estadosDeps.map(x => `"${x.id}"`).join(', ')}`);
+    const mapaCells = findCellsByEstado(mapaWorld, id);
+    if (mapaCells.length) {
+      const sample = mapaCells.slice(0, 5).map(c => `(${c.lat},${c.lon})`).join(', ');
+      const extra  = mapaCells.length > 5 ? ` e mais ${mapaCells.length - 5}` : '';
+      msgs.push(`${mapaCells.length} célula(s) no mapa: ${sample}${extra}`);
+    }
     if (msgs.length) {
       setStatus(`⛔ Não é possível excluir o estado "${id}". Dependências: ${msgs.join('; ')}.`);
       return;
@@ -1229,6 +1255,349 @@ document.getElementById('btn-add-empresa').addEventListener('click', async () =>
 });
 document.getElementById('btn-add-estado').addEventListener('click', () => {
   openAddEntityModal('estado');
+});
+
+// ── Mapa ─────────────────────────────────────────────────────────────────────
+
+async function loadMapaConfig() {
+  if (mapaConfig) return mapaConfig;
+  const [biomas, climas] = await Promise.all([
+    fetch('../data/config/biomas.json').then(r => r.json()),
+    fetch('../data/config/climas.json').then(r => r.json()),
+  ]);
+  mapaConfig = { biomas, climas };
+  return mapaConfig;
+}
+
+/** Compute the inclusive lat/lon bounds of the current viewport. */
+function mapaViewportBounds() {
+  const { latCenter, lonCenter, rows, cols } = mapaVp;
+  const latMax = Math.min(90,   Math.round(latCenter + (rows - 1) / 2));
+  const latMin = Math.max(-90,  latMax - rows + 1);
+  const lonMin = Math.max(-180, Math.round(lonCenter - (cols - 1) / 2));
+  const lonMax = Math.min(180,  lonMin + cols - 1);
+  return { latMin, latMax, lonMin, lonMax };
+}
+
+/** Build the CSS class string for a cell at (lat, lon). */
+function cellCssClass(lat, lon) {
+  const cell = getCell(mapaWorld, lat, lon);
+  let cls = 'mc ';
+  if (!cell || !cell.tipo)     cls += 'mc-empty';
+  else if (cell.tipo === 'agua') cls += 'mc-agua';
+  else                           cls += 'mc-terra';
+  if (cell && cell.estado_id)  cls += ' mc-has-estado';
+  return cls;
+}
+
+/** Update just the visual state of one cell element (after a paint). */
+function updateCellElement(lat, lon) {
+  const el = document.querySelector(`.mapa-grid [data-lat="${lat}"][data-lon="${lon}"]`);
+  if (!el) return;
+  el.className = cellCssClass(lat, lon);
+  if (mapaSelectedCell && mapaSelectedCell.lat === lat && mapaSelectedCell.lon === lon) {
+    el.classList.add('mc-selected');
+  }
+  // Update tooltip
+  const cell = getCell(mapaWorld, lat, lon);
+  el.title = cell
+    ? `(${lat}, ${lon}) tipo:${cell.tipo || '–'} estado:${cell.estado_id || '–'} bioma:${cell.bioma || '–'} clima:${cell.clima || '–'}`
+    : `(${lat}, ${lon})`;
+}
+
+/** (Re)render the full map grid for the current viewport. */
+function renderMapaGrid() {
+  const grid = document.getElementById('mapa-grid');
+  if (!grid) return;
+
+  const { latMin, latMax, lonMin, lonMax } = mapaViewportBounds();
+  const rows = latMax - latMin + 1;
+  const cols = lonMax - lonMin + 1;
+
+  grid.style.gridTemplateColumns = `28px repeat(${cols}, 12px)`;
+  grid.style.gridTemplateRows    = `16px repeat(${rows}, 12px)`;
+
+  let html = '';
+
+  // ── Corner cell ──
+  html += '<div class="mc-corner"></div>';
+
+  // ── Longitude header row ──
+  for (let lon = lonMin; lon <= lonMax; lon++) {
+    const label = (lon === 0 || lon % 10 === 0) ? String(lon) : '';
+    html += `<div class="mc-lon-label" title="lon ${lon}">${esc(label)}</div>`;
+  }
+
+  // ── Latitude rows (top = north = latMax) ──
+  for (let lat = latMax; lat >= latMin; lat--) {
+    const latLabel = (lat === 0 || lat % 5 === 0) ? String(lat) : '';
+    html += `<div class="mc-lat-label" title="lat ${lat}">${esc(latLabel)}</div>`;
+
+    for (let lon = lonMin; lon <= lonMax; lon++) {
+      const cell    = getCell(mapaWorld, lat, lon);
+      const tip     = cell
+        ? `(${lat}, ${lon}) tipo:${cell.tipo || '–'} estado:${cell.estado_id || '–'} bioma:${cell.bioma || '–'} clima:${cell.clima || '–'}`
+        : `(${lat}, ${lon})`;
+      const selected = mapaSelectedCell &&
+                       mapaSelectedCell.lat === lat && mapaSelectedCell.lon === lon;
+      html += `<div class="${cellCssClass(lat, lon)}${selected ? ' mc-selected' : ''}" data-lat="${lat}" data-lon="${lon}" title="${esc(tip)}"></div>`;
+    }
+  }
+
+  grid.innerHTML = html;
+
+  // ── Bind pointer events for brush painting ──
+  grid.querySelectorAll('.mc[data-lat]').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      mapaBrushDown = true;
+      mapaDragMoved = false;
+      const lat = parseInt(el.dataset.lat, 10);
+      const lon = parseInt(el.dataset.lon, 10);
+      applyMapaBrush(lat, lon);
+    });
+
+    el.addEventListener('mouseenter', () => {
+      if (!mapaBrushDown) return;
+      mapaDragMoved = true;
+      applyMapaBrush(
+        parseInt(el.dataset.lat, 10),
+        parseInt(el.dataset.lon, 10),
+      );
+    });
+
+    el.addEventListener('mouseup', e => {
+      if (e.button !== 0) return;
+      const wasDrag = mapaDragMoved;
+      mapaBrushDown = false;
+      if (!wasDrag) {
+        openMapaCellEditor(
+          parseInt(el.dataset.lat, 10),
+          parseInt(el.dataset.lon, 10),
+        );
+      }
+    });
+  });
+
+  // Update zoom info display
+  const zoomEl = document.getElementById('mapa-zoom-info');
+  if (zoomEl) zoomEl.textContent = `${cols}×${rows}`;
+}
+
+/** Apply the active brush (or eraser) to a single cell. */
+function applyMapaBrush(lat, lon) {
+  if (mapaEraserMode) {
+    clearCell(mapaWorld, lat, lon);
+  } else {
+    const fields = {};
+    for (const f of ['tipo', 'estado_id', 'bioma', 'clima']) {
+      if (mapaBrushLocks[f]) {
+        fields[f] = mapaBrushValues[f];
+      }
+    }
+    if (Object.keys(fields).length) {
+      setCell(mapaWorld, lat, lon, fields);
+    }
+  }
+  updateCellElement(lat, lon);
+}
+
+/** Select a cell and populate the cell editor panel. */
+function openMapaCellEditor(lat, lon) {
+  // Clear previous selection highlight
+  if (mapaSelectedCell) {
+    const prev = document.querySelector(
+      `.mapa-grid [data-lat="${mapaSelectedCell.lat}"][data-lon="${mapaSelectedCell.lon}"]`,
+    );
+    if (prev) prev.classList.remove('mc-selected');
+  }
+
+  mapaSelectedCell = { lat, lon };
+  const el = document.querySelector(`.mapa-grid [data-lat="${lat}"][data-lon="${lon}"]`);
+  if (el) el.classList.add('mc-selected');
+
+  const cell = getCell(mapaWorld, lat, lon) || {};
+  document.getElementById('mapa-cell-coords').textContent = `(${lat}, ${lon})`;
+  document.getElementById('mapa-edit-tipo').value    = cell.tipo       || '';
+  document.getElementById('mapa-edit-estado').value  = cell.estado_id  || '';
+  document.getElementById('mapa-edit-bioma').value   = cell.bioma      || '';
+  document.getElementById('mapa-edit-clima').value   = cell.clima      || '';
+  document.getElementById('mapa-cell-editor').style.display = '';
+}
+
+/** Read current brush controls into the brush state variables. */
+function syncMapaBrushState() {
+  mapaBrushValues.tipo      = document.getElementById('mapa-brush-tipo').value;
+  mapaBrushValues.estado_id = document.getElementById('mapa-brush-estado').value;
+  mapaBrushValues.bioma     = document.getElementById('mapa-brush-bioma').value;
+  mapaBrushValues.clima     = document.getElementById('mapa-brush-clima').value;
+  mapaBrushLocks.tipo       = document.getElementById('mapa-lock-tipo').checked;
+  mapaBrushLocks.estado_id  = document.getElementById('mapa-lock-estado').checked;
+  mapaBrushLocks.bioma      = document.getElementById('mapa-lock-bioma').checked;
+  mapaBrushLocks.clima      = document.getElementById('mapa-lock-clima').checked;
+  mapaEraserMode            = document.getElementById('mapa-eraser').checked;
+}
+
+/** Populate the estado dropdowns in the brush panel and cell editor. */
+function populateMapaEstadoSelects() {
+  const opts = world.estados
+    .map(s => `<option value="${esc(s.id)}">${esc(s.nome || s.id)}</option>`)
+    .join('');
+
+  for (const id of ['mapa-brush-estado', 'mapa-edit-estado']) {
+    const sel = document.getElementById(id);
+    if (!sel) continue;
+    const prev = sel.value;
+    sel.innerHTML = `<option value="">(nenhum)</option>${opts}`;
+    sel.value = prev;   // restore selection if still valid
+  }
+}
+
+/** Populate the bioma/clima select options from config arrays. */
+function populateMapaBiomaClimaSelects(biomas, climas) {
+  const makeOpts = arr =>
+    arr.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+
+  const biomaOpts = `<option value="">(nenhum)</option>${makeOpts(biomas)}`;
+  const climaOpts = `<option value="">(nenhum)</option>${makeOpts(climas)}`;
+
+  for (const id of ['mapa-brush-bioma', 'mapa-edit-bioma']) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = biomaOpts;
+  }
+  for (const id of ['mapa-brush-clima', 'mapa-edit-clima']) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = climaOpts;
+  }
+}
+
+/** Initialise the Mapa tab (called once on first activation and on subsequent visits). */
+let mapaTabInitialised = false;
+async function initMapaTab() {
+  try {
+    const cfg = await loadMapaConfig();
+    if (!mapaTabInitialised) {
+      populateMapaBiomaClimaSelects(cfg.biomas, cfg.climas);
+      mapaTabInitialised = true;
+    }
+    populateMapaEstadoSelects();
+    renderMapaGrid();
+  } catch (err) {
+    setStatus(`Erro ao inicializar mapa: ${err.message}`);
+    console.error(err);
+  }
+}
+
+// ── Mapa import / export ──────────────────────────────────────────────────────
+
+document.getElementById('file-mapa').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    mapaWorld = JSON.parse(await readFile(file));
+    renderMapaGrid();
+    setStatus(`Mapa carregado: ${file.name}`);
+  } catch (err) {
+    setStatus(`Erro ao importar mapa: ${err.message}`);
+  }
+  e.target.value = '';
+});
+
+document.getElementById('btn-export-mapa').addEventListener('click', () => {
+  downloadText('mapa.json', JSON.stringify(mapaWorld, null, 2));
+  setStatus('⬇ mapa.json exportado.');
+});
+
+// ── Mapa viewport controls ────────────────────────────────────────────────────
+
+document.getElementById('mapa-lat-center').addEventListener('change', e => {
+  mapaVp.latCenter = Math.max(-90, Math.min(90, parseInt(e.target.value, 10) || 0));
+  renderMapaGrid();
+});
+
+document.getElementById('mapa-lon-center').addEventListener('change', e => {
+  mapaVp.lonCenter = Math.max(-180, Math.min(180, parseInt(e.target.value, 10) || 0));
+  renderMapaGrid();
+});
+
+const MAPA_PAN_STEP = 10;
+
+document.getElementById('mapa-pan-n').addEventListener('click', () => {
+  mapaVp.latCenter = Math.min(90, mapaVp.latCenter + MAPA_PAN_STEP);
+  document.getElementById('mapa-lat-center').value = mapaVp.latCenter;
+  renderMapaGrid();
+});
+document.getElementById('mapa-pan-s').addEventListener('click', () => {
+  mapaVp.latCenter = Math.max(-90, mapaVp.latCenter - MAPA_PAN_STEP);
+  document.getElementById('mapa-lat-center').value = mapaVp.latCenter;
+  renderMapaGrid();
+});
+document.getElementById('mapa-pan-w').addEventListener('click', () => {
+  mapaVp.lonCenter = Math.max(-180, mapaVp.lonCenter - MAPA_PAN_STEP);
+  document.getElementById('mapa-lon-center').value = mapaVp.lonCenter;
+  renderMapaGrid();
+});
+document.getElementById('mapa-pan-e').addEventListener('click', () => {
+  mapaVp.lonCenter = Math.min(180, mapaVp.lonCenter + MAPA_PAN_STEP);
+  document.getElementById('mapa-lon-center').value = mapaVp.lonCenter;
+  renderMapaGrid();
+});
+
+document.getElementById('mapa-zoom-in').addEventListener('click', () => {
+  mapaVp.cols = Math.max(10, mapaVp.cols - 10);
+  mapaVp.rows = Math.max(5,  mapaVp.rows - 5);
+  renderMapaGrid();
+});
+document.getElementById('mapa-zoom-out').addEventListener('click', () => {
+  mapaVp.cols = Math.min(361, mapaVp.cols + 10);
+  mapaVp.rows = Math.min(181, mapaVp.rows + 5);
+  renderMapaGrid();
+});
+
+// ── Mapa brush controls ───────────────────────────────────────────────────────
+
+['mapa-brush-tipo','mapa-brush-estado','mapa-brush-bioma','mapa-brush-clima',
+ 'mapa-lock-tipo','mapa-lock-estado','mapa-lock-bioma','mapa-lock-clima',
+ 'mapa-eraser',
+].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', syncMapaBrushState);
+});
+
+// Stop brush when mouse leaves the grid or is released anywhere on the page
+document.getElementById('mapa-grid').addEventListener('mouseleave', () => {
+  mapaBrushDown = false;
+});
+document.addEventListener('mouseup', () => {
+  mapaBrushDown = false;
+});
+
+// ── Mapa cell editor save / clear ─────────────────────────────────────────────
+
+document.getElementById('mapa-edit-save').addEventListener('click', () => {
+  if (!mapaSelectedCell) return;
+  const { lat, lon } = mapaSelectedCell;
+  setCell(mapaWorld, lat, lon, {
+    tipo:      document.getElementById('mapa-edit-tipo').value,
+    estado_id: document.getElementById('mapa-edit-estado').value,
+    bioma:     document.getElementById('mapa-edit-bioma').value,
+    clima:     document.getElementById('mapa-edit-clima').value,
+  });
+  updateCellElement(lat, lon);
+  setStatus(`Célula (${lat}, ${lon}) atualizada.`);
+});
+
+document.getElementById('mapa-edit-clear').addEventListener('click', () => {
+  if (!mapaSelectedCell) return;
+  const { lat, lon } = mapaSelectedCell;
+  clearCell(mapaWorld, lat, lon);
+  updateCellElement(lat, lon);
+  document.getElementById('mapa-edit-tipo').value    = '';
+  document.getElementById('mapa-edit-estado').value  = '';
+  document.getElementById('mapa-edit-bioma').value   = '';
+  document.getElementById('mapa-edit-clima').value   = '';
+  setStatus(`Célula (${lat}, ${lon}) limpa.`);
 });
 
 // ── Initialise ────────────────────────────────────────────────────────────────

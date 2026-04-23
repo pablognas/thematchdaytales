@@ -388,6 +388,101 @@
       color: var(--yellow);
       margin-bottom: 0.25rem;
     }
+
+    /* ── Mapa tab ─────────────────────────────────────────────────────────── */
+    .mapa-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 0.75rem;
+    }
+    .mapa-label { font-size: 0.75rem; color: var(--muted); }
+
+    .mapa-main { display: flex; gap: 0.75rem; align-items: flex-start; }
+    .mapa-side { flex-shrink: 0; width: 172px; }
+
+    .mapa-brush-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      font-size: 0.8rem;
+    }
+    .mapa-brush-panel label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .mapa-panel-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.4rem;
+    }
+    .mapa-select {
+      width: 100%;
+      margin-top: 0.2rem;
+      background: #111827;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      padding: 0.2rem 0.4rem;
+      font-size: 0.78rem;
+    }
+    .mapa-grid-outer { overflow: auto; flex: 1; }
+    .mapa-grid {
+      display: grid;
+      gap: 0;
+      line-height: 1;
+      user-select: none;
+    }
+    .mc {
+      width: 12px;
+      height: 12px;
+      cursor: crosshair;
+      box-sizing: border-box;
+      border: 1px solid transparent;
+    }
+    .mc:hover { filter: brightness(1.5); }
+    .mc-agua  { background: #163557; }
+    .mc-terra { background: #1a4d2b; }
+    .mc-empty { background: #1a1f2b; }
+    .mc-has-estado { border-color: var(--yellow) !important; }
+    .mc-selected   { outline: 2px solid var(--accent); outline-offset: -1px; position: relative; z-index: 1; }
+    .mc-lat-label {
+      width: 28px;
+      height: 12px;
+      font-size: 8px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .mc-lon-label {
+      width: 12px;
+      height: 16px;
+      font-size: 7px;
+      color: var(--muted);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 1px;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      overflow: hidden;
+    }
+    .mc-corner { width: 28px; height: 16px; }
   </style>
 </head>
 <body>
@@ -409,7 +504,8 @@
   <button class="tab-btn"        data-tab="empresas"   role="tab">🏢 Empresas</button>
   <button class="tab-btn"        data-tab="estados"    role="tab">🗺 Estados</button>
   <button class="tab-btn"        data-tab="agendamento" role="tab">📅 Agendamentos</button>
-  <button class="tab-btn"        data-tab="log"        role="tab">📋 Log</button>
+  <button class="tab-btn"        data-tab="mapa"        role="tab">🧭 Mapa</button>
+  <button class="tab-btn"        data-tab="log"         role="tab">📋 Log</button>
 </nav>
 
 <!-- ── Main content ─────────────────────────────────────────────────────── -->
@@ -511,6 +607,106 @@
   <!-- ── Log ──────────────────────────────────────────────────────────── -->
   <section id="tab-log" class="tab-panel" role="tabpanel">
     <div id="log">Nenhum tick executado ainda.</div>
+  </section>
+
+  <!-- ── Mapa ─────────────────────────────────────────────────────────── -->
+  <section id="tab-mapa" class="tab-panel" role="tabpanel">
+
+    <div class="mapa-toolbar">
+      <span class="mapa-label">Centro:</span>
+      <input type="number" id="mapa-lat-center" min="-90"  max="90"  value="0" title="Latitude central"  style="width:72px" />
+      <span class="mapa-label">lat</span>
+      <input type="number" id="mapa-lon-center" min="-180" max="180" value="0" title="Longitude central" style="width:82px" />
+      <span class="mapa-label">lon</span>
+      <button id="mapa-pan-n" class="btn-ghost btn-sm" title="Pan Norte">↑</button>
+      <button id="mapa-pan-s" class="btn-ghost btn-sm" title="Pan Sul"  >↓</button>
+      <button id="mapa-pan-w" class="btn-ghost btn-sm" title="Pan Oeste">←</button>
+      <button id="mapa-pan-e" class="btn-ghost btn-sm" title="Pan Leste">→</button>
+      <span class="mapa-label" style="margin-left:0.5rem">Zoom:</span>
+      <button id="mapa-zoom-in"  class="btn-ghost btn-sm">+</button>
+      <button id="mapa-zoom-out" class="btn-ghost btn-sm">−</button>
+      <span id="mapa-zoom-info" class="mapa-label"></span>
+      <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center">
+        <label class="btn-ghost btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:0.3rem">
+          📂 Importar
+          <input type="file" id="file-mapa" accept=".json" style="display:none" />
+        </label>
+        <button id="btn-export-mapa" class="btn-blue btn-sm">⬇ Exportar mapa.json</button>
+      </div>
+    </div>
+
+    <div class="mapa-main">
+
+      <!-- Brush + Cell editor side panel -->
+      <div class="mapa-side">
+
+        <div class="mapa-brush-panel">
+          <div class="mapa-panel-title">🖌 Pincel</div>
+
+          <label><input type="checkbox" id="mapa-lock-tipo" checked /> Tipo</label>
+          <select id="mapa-brush-tipo" class="mapa-select">
+            <option value="">(nenhum)</option>
+            <option value="agua">🌊 água</option>
+            <option value="terra">🟩 terra</option>
+          </select>
+
+          <label><input type="checkbox" id="mapa-lock-estado" /> Estado</label>
+          <select id="mapa-brush-estado" class="mapa-select">
+            <option value="">(nenhum)</option>
+          </select>
+
+          <label><input type="checkbox" id="mapa-lock-bioma" /> Bioma</label>
+          <select id="mapa-brush-bioma" class="mapa-select">
+            <option value="">(nenhum)</option>
+          </select>
+
+          <label><input type="checkbox" id="mapa-lock-clima" /> Clima</label>
+          <select id="mapa-brush-clima" class="mapa-select">
+            <option value="">(nenhum)</option>
+          </select>
+
+          <div style="margin-top:0.75rem">
+            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+              <input type="checkbox" id="mapa-eraser" />
+              <span>🧹 Borracha (limpar célula)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Cell editor (shown when a cell is selected) -->
+        <div id="mapa-cell-editor" class="mapa-brush-panel" style="display:none;margin-top:0.75rem">
+          <div class="mapa-panel-title">📍 Célula <span id="mapa-cell-coords"></span></div>
+
+          <label class="form-label">Tipo</label>
+          <select id="mapa-edit-tipo" class="mapa-select">
+            <option value="">(nenhum)</option>
+            <option value="agua">🌊 água</option>
+            <option value="terra">🟩 terra</option>
+          </select>
+
+          <label class="form-label" style="margin-top:0.4rem">Estado</label>
+          <select id="mapa-edit-estado" class="mapa-select"><option value="">(nenhum)</option></select>
+
+          <label class="form-label" style="margin-top:0.4rem">Bioma</label>
+          <select id="mapa-edit-bioma" class="mapa-select"><option value="">(nenhum)</option></select>
+
+          <label class="form-label" style="margin-top:0.4rem">Clima</label>
+          <select id="mapa-edit-clima" class="mapa-select"><option value="">(nenhum)</option></select>
+
+          <div style="display:flex;gap:0.4rem;margin-top:0.6rem">
+            <button id="mapa-edit-save"  class="btn-blue btn-sm" style="flex:1">✔ Salvar</button>
+            <button id="mapa-edit-clear" class="btn-red  btn-sm" style="flex:1">🗑 Limpar</button>
+          </div>
+        </div>
+
+      </div><!-- .mapa-side -->
+
+      <!-- Grid -->
+      <div class="mapa-grid-outer">
+        <div id="mapa-grid" class="mapa-grid"></div>
+      </div>
+
+    </div><!-- .mapa-main -->
   </section>
 
 </main>
