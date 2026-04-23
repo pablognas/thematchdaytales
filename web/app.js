@@ -1294,6 +1294,8 @@ function cellCssClass(lat, lon) {
   else if (cell.tipo === 'agua') cls += 'mc-agua';
   else                           cls += 'mc-terra';
   if (cell && cell.estado_id)  cls += ' mc-has-estado';
+  if (lat === 0)               cls += ' mc-zero-lat';
+  if (lon === 0)               cls += ' mc-zero-lon';
   return cls;
 }
 
@@ -1332,13 +1334,15 @@ function renderMapaGrid() {
   // ── Longitude header row ──
   for (let lon = lonMin; lon <= lonMax; lon++) {
     const label = (lon === 0 || lon % 10 === 0) ? String(lon) : '';
-    html += `<div class="mc-lon-label" title="lon ${lon}">${esc(label)}</div>`;
+    const zeroCls = lon === 0 ? ' mc-lon-label-zero' : '';
+    html += `<div class="mc-lon-label${zeroCls}" title="lon ${lon}">${esc(label)}</div>`;
   }
 
   // ── Latitude rows (top = north = latMax) ──
   for (let lat = latMax; lat >= latMin; lat--) {
     const latLabel = (lat === 0 || lat % 5 === 0) ? String(lat) : '';
-    html += `<div class="mc-lat-label" title="lat ${lat}">${esc(latLabel)}</div>`;
+    const zeroCls = lat === 0 ? ' mc-lat-label-zero' : '';
+    html += `<div class="mc-lat-label${zeroCls}" title="lat ${lat}">${esc(latLabel)}</div>`;
 
     for (let lon = lonMin; lon <= lonMax; lon++) {
       const cell    = getCell(mapaWorld, lat, lon);
