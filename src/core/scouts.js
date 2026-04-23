@@ -48,8 +48,10 @@ export function calcMatchScore(counts) {
 
 /**
  * Compute the new average score.
- * If prevScore is 0/falsy (no prior score), returns matchScore directly.
- * Otherwise returns (prevScore + matchScore) / 2.
+ * A prevScore of 0/falsy is treated as "no prior score" (the default for new
+ * players), in which case matchScore is returned as-is without dividing by 2.
+ * This matches the spec: "when previous score is missing/0/undefined, use the
+ * match score as the new average."
  * @param {number} prevScore
  * @param {number} matchScore
  * @returns {number}

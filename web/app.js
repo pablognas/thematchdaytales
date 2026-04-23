@@ -784,7 +784,7 @@ function openScoutsModal(pessoaId) {
   scoutModalPessoaId = pessoaId;
   scoutCounts = {};
 
-  const isGoleiro = (pessoa.posicao || '').toLowerCase() === 'goleiro';
+  const isGoleiro = (pessoa.posicao || '').trim().toLowerCase() === 'goleiro';
   document.getElementById('scouts-modal-title').textContent = `⚽ Scouts — ${pessoa.nome}`;
 
   renderScoutsForm(isGoleiro);
