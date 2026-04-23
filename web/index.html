@@ -456,6 +456,8 @@
     .mc-terra { background: #1a4d2b; }
     .mc-empty { background: #1a1f2b; }
     .mc-has-estado { border-color: var(--yellow) !important; }
+    .mc-zero-lat   { border-top: 1px solid rgba(255,255,255,0.25) !important; }
+    .mc-zero-lon   { border-left: 1px solid rgba(255,255,255,0.25) !important; }
     .mc-selected   { outline: 2px solid var(--accent); outline-offset: -1px; position: relative; z-index: 1; }
     .mc-lat-label {
       width: 28px;
@@ -469,6 +471,7 @@
       white-space: nowrap;
       overflow: hidden;
     }
+    .mc-lat-label-zero { color: #fff; font-weight: 700; }
     .mc-lon-label {
       width: 12px;
       height: 16px;
@@ -482,6 +485,7 @@
       transform: rotate(180deg);
       overflow: hidden;
     }
+    .mc-lon-label-zero { color: #fff; font-weight: 700; }
     .mc-corner { width: 28px; height: 16px; }
   </style>
 </head>
