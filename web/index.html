@@ -613,19 +613,19 @@
   <section id="tab-mapa" class="tab-panel" role="tabpanel">
 
     <div class="mapa-toolbar">
-      <span class="mapa-label">Centro:</span>
-      <input type="number" id="mapa-lat-center" min="-90"  max="90"  value="0" title="Latitude central"  style="width:72px" />
+      <span class="mapa-label" id="mapa-centro-label">Centro:</span>
+      <input type="number" id="mapa-lat-center" min="-90"  max="90"  value="0" aria-label="Latitude central"  style="width:72px" />
       <span class="mapa-label">lat</span>
-      <input type="number" id="mapa-lon-center" min="-180" max="180" value="0" title="Longitude central" style="width:82px" />
+      <input type="number" id="mapa-lon-center" min="-180" max="180" value="0" aria-label="Longitude central" style="width:82px" />
       <span class="mapa-label">lon</span>
-      <button id="mapa-pan-n" class="btn-ghost btn-sm" title="Pan Norte">↑</button>
-      <button id="mapa-pan-s" class="btn-ghost btn-sm" title="Pan Sul"  >↓</button>
-      <button id="mapa-pan-w" class="btn-ghost btn-sm" title="Pan Oeste">←</button>
-      <button id="mapa-pan-e" class="btn-ghost btn-sm" title="Pan Leste">→</button>
+      <button id="mapa-pan-n" class="btn-ghost btn-sm" title="Pan Norte" aria-label="Mover Norte">↑</button>
+      <button id="mapa-pan-s" class="btn-ghost btn-sm" title="Pan Sul"   aria-label="Mover Sul"  >↓</button>
+      <button id="mapa-pan-w" class="btn-ghost btn-sm" title="Pan Oeste" aria-label="Mover Oeste">←</button>
+      <button id="mapa-pan-e" class="btn-ghost btn-sm" title="Pan Leste" aria-label="Mover Leste">→</button>
       <span class="mapa-label" style="margin-left:0.5rem">Zoom:</span>
-      <button id="mapa-zoom-in"  class="btn-ghost btn-sm">+</button>
-      <button id="mapa-zoom-out" class="btn-ghost btn-sm">−</button>
-      <span id="mapa-zoom-info" class="mapa-label"></span>
+      <button id="mapa-zoom-in"  class="btn-ghost btn-sm" aria-label="Aproximar">+</button>
+      <button id="mapa-zoom-out" class="btn-ghost btn-sm" aria-label="Afastar">−</button>
+      <span id="mapa-zoom-info" class="mapa-label" aria-live="polite"></span>
       <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center">
         <label class="btn-ghost btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:0.3rem">
           📂 Importar

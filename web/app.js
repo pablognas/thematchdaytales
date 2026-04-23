@@ -1269,7 +1269,14 @@ async function loadMapaConfig() {
   return mapaConfig;
 }
 
-/** Compute the inclusive lat/lon bounds of the current viewport. */
+/**
+ * Compute the inclusive lat/lon bounds of the current viewport.
+ * Coordinates are clamped to valid globe ranges (-90..90 lat, -180..180 lon).
+ * The viewport is centred on `mapaVp.latCenter` / `mapaVp.lonCenter`.
+ * @returns {{ latMin: number, latMax: number, lonMin: number, lonMax: number }}
+ *   All values are integers; lat rows run top (latMax) to bottom (latMin),
+ *   lon columns run left (lonMin) to right (lonMax).
+ */
 function mapaViewportBounds() {
   const { latCenter, lonCenter, rows, cols } = mapaVp;
   const latMax = Math.min(90,   Math.round(latCenter + (rows - 1) / 2));
@@ -1385,7 +1392,14 @@ function renderMapaGrid() {
   if (zoomEl) zoomEl.textContent = `${cols}×${rows}`;
 }
 
-/** Apply the active brush (or eraser) to a single cell. */
+/**
+ * Apply the active brush (or eraser) to the map cell at (lat, lon).
+ * In eraser mode the cell is removed entirely from mapaWorld.
+ * Otherwise, all locked fields from `mapaBrushValues` are written to the cell;
+ * unlocked fields are left unchanged.
+ * @param {number} lat
+ * @param {number} lon
+ */
 function applyMapaBrush(lat, lon) {
   if (mapaEraserMode) {
     clearCell(mapaWorld, lat, lon);
@@ -1403,7 +1417,12 @@ function applyMapaBrush(lat, lon) {
   updateCellElement(lat, lon);
 }
 
-/** Select a cell and populate the cell editor panel. */
+/**
+ * Select a cell for editing and populate the cell editor panel.
+ * Highlights the cell in the grid and shows its current property values.
+ * @param {number} lat
+ * @param {number} lon
+ */
 function openMapaCellEditor(lat, lon) {
   // Clear previous selection highlight
   if (mapaSelectedCell) {
@@ -1426,7 +1445,11 @@ function openMapaCellEditor(lat, lon) {
   document.getElementById('mapa-cell-editor').style.display = '';
 }
 
-/** Read current brush controls into the brush state variables. */
+/**
+ * Read current brush control values from the DOM into the global brush state
+ * variables (`mapaBrushValues`, `mapaBrushLocks`, `mapaEraserMode`).
+ * Called on every `change` event from a brush control.
+ */
 function syncMapaBrushState() {
   mapaBrushValues.tipo      = document.getElementById('mapa-brush-tipo').value;
   mapaBrushValues.estado_id = document.getElementById('mapa-brush-estado').value;
@@ -1439,7 +1462,11 @@ function syncMapaBrushState() {
   mapaEraserMode            = document.getElementById('mapa-eraser').checked;
 }
 
-/** Populate the estado dropdowns in the brush panel and cell editor. */
+/**
+ * Populate the estado dropdown options in both the brush panel and cell editor
+ * from the currently loaded `world.estados` array.
+ * Preserves the previously selected value when options are rebuilt.
+ */
 function populateMapaEstadoSelects() {
   const opts = world.estados
     .map(s => `<option value="${esc(s.id)}">${esc(s.nome || s.id)}</option>`)
@@ -1454,7 +1481,12 @@ function populateMapaEstadoSelects() {
   }
 }
 
-/** Populate the bioma/clima select options from config arrays. */
+/**
+ * Populate bioma and clima select elements from the provided config arrays.
+ * Applied to both the brush panel selects and the cell editor selects.
+ * @param {string[]} biomas  List of biome names
+ * @param {string[]} climas  List of climate names
+ */
 function populateMapaBiomaClimaSelects(biomas, climas) {
   const makeOpts = arr =>
     arr.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
