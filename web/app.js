@@ -35,6 +35,10 @@ import {
   removeAllConversionsForEntity, removeAllInjectionsForEntity,
 } from '../src/core/scheduler.js';
 import { getCell, setCell, clearCell, findCellsByEstado, rowsToMapa, mapaToRows } from '../src/core/map.js';
+import {
+  SCOUTS_ATAQUE, SCOUTS_DEFESA,
+  calcMatchScore, calcNewAverage, calcNewMarketValue,
+} from '../src/core/scouts.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
@@ -48,6 +52,10 @@ let modalEntityType = null;
 let modalEntityId   = null;
 let modalAtivos     = {};
 
+// Scouts modal state
+let scoutModalPessoaId = null;
+let scoutCounts        = {};
+
 // ── Map state ──────────────────────────────────────────────────────────────
 let mapaWorld  = {};          // sparse map data (lat → lon → cell)
 let mapaConfig = null;        // { biomas: string[], climas: string[] }
@@ -55,9 +63,10 @@ let mapaConfig = null;        // { biomas: string[], climas: string[] }
 // ── Table sort state ───────────────────────────────────────────────────────
 // by: 'nome' | 'patrimonio'  dir: 1 = ascending, -1 = descending
 let tableSorts = {
-  pessoas:  { by: 'nome', dir: 1 },
-  empresas: { by: 'nome', dir: 1 },
-  estados:  { by: 'nome', dir: 1 },
+  pessoas:   { by: 'nome', dir: 1 },
+  empresas:  { by: 'nome', dir: 1 },
+  estados:   { by: 'nome', dir: 1 },
+  jogadores: { by: 'nome', dir: 1 },
 };
 
 // Viewport: center + dimensions (columns = lon count, rows = lat count)
@@ -278,6 +287,11 @@ function sortedEntities(arr, by, dir) {
       vb = b.patrimonio ?? b.atributos?.patrimonio ?? 0;
       return dir * (va - vb);
     }
+    if (by === 'nota_scouting' || by === 'valor_mercado') {
+      va = a[by] ?? 0;
+      vb = b[by] ?? 0;
+      return dir * (va - vb);
+    }
     va = (a.nome || a.id || '').toLocaleLowerCase('pt-BR');
     vb = (b.nome || b.id || '').toLocaleLowerCase('pt-BR');
     return dir * va.localeCompare(vb, 'pt-BR');
@@ -311,9 +325,10 @@ document.addEventListener('click', e => {
     cur.by  = key;
     cur.dir = 1;
   }
-  if (table === 'pessoas')  renderPessoasTable();
-  if (table === 'empresas') renderEmpresasTable();
-  if (table === 'estados')  renderEstadosTable();
+  if (table === 'pessoas')   renderPessoasTable();
+  if (table === 'empresas')  renderEmpresasTable();
+  if (table === 'estados')   renderEstadosTable();
+  if (table === 'jogadores') renderJogadoresTable();
 });
 
 // ── Pessoas table ────────────────────────────────────────────────────────────
@@ -599,6 +614,7 @@ const FIELD_SETTERS = {
   // Pessoa jogador stats
   nota_scouting: (e, v) => { e.nota_scouting = v; },
   valor_mercado:  (e, v) => { e.valor_mercado  = v; },
+  posicao:        (e, v) => { e.posicao        = v; },
 };
 
 /** Apply a known field update to an entity. Ignores unknown paths. */
@@ -701,35 +717,51 @@ function closeAtivosModal() {
 function renderJogadoresTable() {
   const container = document.getElementById('table-jogadores');
   if (!container) return;
-  const jogadores = world.pessoas.filter(p => p.classe === 'jogador');
+  const all = world.pessoas.filter(p => p.classe === 'jogador');
 
-  if (!jogadores.length) {
+  if (!all.length) {
     container.innerHTML = '<div class="empty-state">Nenhum jogador carregado. Carregue pessoas com classe "jogador".</div>';
     return;
   }
 
+  const { by, dir } = tableSorts.jogadores;
+  const sorted = sortedEntities(all, by, dir);
+  const idxMap = new Map(all.map(item => [item, world.pessoas.indexOf(item)]));
+
   let html = `<div class="table-wrap"><table>
     <thead><tr>
-      <th>ID</th><th>Nome</th><th>Estado</th>
-      <th>Nota de Scouting (0–10)</th><th>Valor de Mercado</th>
+      <th>ID</th>
+      ${sortHeader('Nome', 'nome', 'jogadores')}
+      <th>Estado</th>
+      <th>Posição</th>
+      ${sortHeader('Nota de Scouting', 'nota_scouting', 'jogadores')}
+      ${sortHeader('Valor de Mercado', 'valor_mercado', 'jogadores')}
+      <th>Scouts</th>
     </tr></thead>
     <tbody>`;
 
-  for (const jogador of jogadores) {
-    const i = world.pessoas.indexOf(jogador);
+  for (const jogador of sorted) {
+    const i = idxMap.get(jogador);
     html += `<tr>
       <td class="id-cell">${esc(jogador.id)}</td>
       <td>${esc(jogador.nome)}</td>
       <td class="id-cell">${esc(jogador.estado_id || '–')}</td>
+      <td>
+        <input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="posicao"
+          value="${esc(jogador.posicao || '')}" style="width:110px" placeholder="ex: goleiro" />
+      </td>
       <td class="num">
-        <input class="cell-input num" type="number" min="0" max="10" step="0.1"
+        <input class="cell-input num" type="number" step="0.01"
           data-entity="pessoa" data-idx="${i}" data-field="nota_scouting"
-          value="${fmtDec(jogador.nota_scouting || 0, 1)}" style="width:80px" />
+          value="${fmtDec(jogador.nota_scouting || 0, 2)}" style="width:90px" />
       </td>
       <td class="num">
         <input class="cell-input num" type="number" min="0" step="100000"
           data-entity="pessoa" data-idx="${i}" data-field="valor_mercado"
           value="${Math.round(jogador.valor_mercado || 0)}" style="width:130px" />
+      </td>
+      <td>
+        <button class="btn-blue btn-sm btn-scouts" data-eid="${esc(jogador.id)}">⚽ Scouts</button>
       </td>
     </tr>`;
   }
@@ -737,7 +769,104 @@ function renderJogadoresTable() {
   html += '</tbody></table></div>';
   container.innerHTML = html;
   bindTableInputs(container);
+
+  container.querySelectorAll('.btn-scouts').forEach(btn => {
+    btn.addEventListener('click', () => openScoutsModal(btn.dataset.eid));
+  });
 }
+
+// ── Scouts Modal ──────────────────────────────────────────────────────────────
+
+function openScoutsModal(pessoaId) {
+  const pessoa = world.pessoas.find(p => p.id === pessoaId);
+  if (!pessoa) return;
+
+  scoutModalPessoaId = pessoaId;
+  scoutCounts = {};
+
+  const isGoleiro = (pessoa.posicao || '').toLowerCase() === 'goleiro';
+  document.getElementById('scouts-modal-title').textContent = `⚽ Scouts — ${pessoa.nome}`;
+
+  renderScoutsForm(isGoleiro);
+  updateScoutsResult(pessoa);
+
+  document.getElementById('modal-scouts').classList.add('open');
+}
+
+function renderScoutsForm(isGoleiro) {
+  const container = document.getElementById('scouts-form');
+
+  const buildSection = (title, scouts) => {
+    let s = `<div class="scouts-section"><h4 class="scouts-section-title">${esc(title)}</h4>`;
+    for (const sc of scouts) {
+      const gkOnly    = !!sc.gk;
+      const disabled  = gkOnly && !isGoleiro ? 'disabled' : '';
+      const gkBadge   = gkOnly ? ' <span class="scouts-gk-badge">GK</span>' : '';
+      const ptsStr    = (sc.pts >= 0 ? '+' : '') + sc.pts.toFixed(1);
+      s += `<div class="scout-row">
+        <label class="scout-label">${esc(sc.label)}${gkBadge} <span class="scouts-pts">${esc(ptsStr)}</span></label>
+        <input type="number" class="cell-input num scouts-count" min="0" step="1" value="0"
+          data-scout="${esc(sc.id)}" style="width:65px" ${disabled} />
+      </div>`;
+    }
+    s += '</div>';
+    return s;
+  };
+
+  container.innerHTML = `<div class="scouts-sections">
+    ${buildSection('⚔️ Ataque', SCOUTS_ATAQUE)}
+    ${buildSection('🛡️ Defesa', SCOUTS_DEFESA)}
+  </div>`;
+
+  container.querySelectorAll('.scouts-count').forEach(input => {
+    input.addEventListener('input', () => {
+      const pessoa = world.pessoas.find(p => p.id === scoutModalPessoaId);
+      if (!pessoa) return;
+      scoutCounts[input.dataset.scout] = parseInt(input.value) || 0;
+      updateScoutsResult(pessoa);
+    });
+  });
+}
+
+function updateScoutsResult(pessoa) {
+  const matchScore = calcMatchScore(scoutCounts);
+  const prevScore  = pessoa.nota_scouting || 0;
+  const newAvg     = calcNewAverage(prevScore, matchScore);
+  const newMktVal  = calcNewMarketValue(pessoa.valor_mercado || 0, prevScore, newAvg);
+
+  document.getElementById('scouts-match-score').textContent = fmtDec(matchScore, 2);
+  document.getElementById('scouts-new-avg').textContent     = fmtDec(newAvg, 2);
+  document.getElementById('scouts-new-market').textContent  = fmtNum(newMktVal);
+}
+
+function applyScouts() {
+  const pessoa = world.pessoas.find(p => p.id === scoutModalPessoaId);
+  if (!pessoa) return;
+
+  const matchScore = calcMatchScore(scoutCounts);
+  const prevScore  = pessoa.nota_scouting || 0;
+  const newAvg     = calcNewAverage(prevScore, matchScore);
+  const newMktVal  = calcNewMarketValue(pessoa.valor_mercado || 0, prevScore, newAvg);
+
+  pessoa.nota_scouting = newAvg;
+  pessoa.valor_mercado = newMktVal;
+
+  closeScoutsModal();
+  renderJogadoresTable();
+  setStatus(`✅ Scouts aplicados para ${pessoa.nome}: nota ${fmtDec(newAvg, 2)}, mercado ${fmtNum(newMktVal)}.`);
+}
+
+function closeScoutsModal() {
+  document.getElementById('modal-scouts').classList.remove('open');
+  scoutModalPessoaId = null;
+  scoutCounts = {};
+}
+
+document.getElementById('btn-scouts-apply')?.addEventListener('click', applyScouts);
+document.getElementById('btn-scouts-cancel')?.addEventListener('click', closeScoutsModal);
+document.getElementById('modal-scouts')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-scouts')) closeScoutsModal();
+});
 
 // ── Transferências ────────────────────────────────────────────────────────────
 
