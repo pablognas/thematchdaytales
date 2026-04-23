@@ -33,7 +33,7 @@ import {
   scheduleInjection, removeInjection, getAllScheduledInjections, getInjectionsForTick, clearInjectionsForTick,
   removeAllConversionsForEntity, removeAllInjectionsForEntity,
 } from '../src/core/scheduler.js';
-import { getCell, setCell, clearCell, findCellsByEstado } from '../src/core/map.js';
+import { getCell, setCell, clearCell, findCellsByEstado, rowsToMapa, mapaToRows } from '../src/core/map.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
@@ -152,18 +152,18 @@ document.getElementById('btn-defaults').addEventListener('click', async () => {
   try {
     setStatus('Carregando exemplos padrão…');
     await loadConfig();
-    const [pCsv, eCsv, sCsv, aCsv, mJson] = await Promise.all([
+    const [pCsv, eCsv, sCsv, aCsv, mCsv] = await Promise.all([
       fetch('../data/world/pessoas.csv').then(r => r.text()),
       fetch('../data/world/empresas.csv').then(r => r.text()),
       fetch('../data/world/estados.csv').then(r => r.text()),
       fetch('../data/world/ativos.csv').then(r => r.text()).catch(() => ''),
-      fetch('../data/world/mapa.json').then(r => r.json()).catch(() => ({})),
+      fetch('../data/world/mapa.csv').then(r => r.text()).catch(() => ''),
     ]);
     world.pessoas  = rowsToPessoas(parseCsv(pCsv));
     world.empresas = rowsToEmpresas(parseCsv(eCsv));
     world.estados  = rowsToEstados(parseCsv(sCsv));
     if (aCsv) applyAtivos(world, parseCsv(aCsv));
-    mapaWorld = mJson;
+    mapaWorld = mCsv ? rowsToMapa(parseCsv(mCsv)) : {};
     renderAll();
     setStatus('✅ Exemplos padrão carregados.');
   } catch (err) {
@@ -1531,9 +1531,17 @@ document.getElementById('file-mapa').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
   try {
-    mapaWorld = JSON.parse(await readFile(file));
+    const rows = parseCsv(await readFile(file));
+    const ignored = rows.filter(r => {
+      const lat = parseInt(r.lat, 10);
+      const lon = parseInt(r.lon, 10);
+      return !Number.isInteger(lat) || lat < -90  || lat > 90 ||
+             !Number.isInteger(lon) || lon < -180 || lon > 180;
+    }).length;
+    mapaWorld = rowsToMapa(rows);
+    const imported = rows.length - ignored;
     renderMapaGrid();
-    setStatus(`Mapa carregado: ${file.name}`);
+    setStatus(`Mapa carregado: ${file.name} — ${imported} células importadas${ignored ? `, ${ignored} ignoradas` : ''}.`);
   } catch (err) {
     setStatus(`Erro ao importar mapa: ${err.message}`);
   }
@@ -1541,8 +1549,12 @@ document.getElementById('file-mapa').addEventListener('change', async e => {
 });
 
 document.getElementById('btn-export-mapa').addEventListener('click', () => {
-  downloadText('mapa.json', JSON.stringify(mapaWorld, null, 2));
-  setStatus('⬇ mapa.json exportado.');
+  const rows = mapaToRows(mapaWorld);
+  const csv  = rows.length > 0
+    ? unparseCsv(rows)
+    : 'lat,lon,tipo,estado_id,bioma,clima';
+  downloadText('mapa.csv', csv);
+  setStatus('⬇ mapa.csv exportado.');
 });
 
 // ── Mapa viewport controls ────────────────────────────────────────────────────
