@@ -327,6 +327,7 @@ function renderPessoasTable() {
 
   const { by, dir } = tableSorts.pessoas;
   const sorted = sortedEntities(p, by, dir);
+  const idxMap = new Map(p.map((item, i) => [item, i]));
 
   let html = `<div class="table-wrap"><table>
     <thead><tr>
@@ -343,7 +344,7 @@ function renderPessoasTable() {
     <tbody>`;
 
   for (const pessoa of sorted) {
-    const i = p.indexOf(pessoa);
+    const i = idxMap.get(pessoa);
     const badgeClass = `badge-${pessoa.classe}`;
     html += `<tr>
       <td class="id-cell">${esc(pessoa.id)}</td>
@@ -380,6 +381,7 @@ function renderEmpresasTable() {
 
   const { by, dir } = tableSorts.empresas;
   const sorted = sortedEntities(e, by, dir);
+  const idxMap = new Map(e.map((item, i) => [item, i]));
 
   let html = `<div class="table-wrap"><table>
     <thead><tr>
@@ -395,7 +397,7 @@ function renderEmpresasTable() {
     <tbody>`;
 
   for (const emp of sorted) {
-    const i = e.indexOf(emp);
+    const i = idxMap.get(emp);
     html += `<tr>
       <td class="id-cell">${esc(emp.id)}</td>
       <td><input class="cell-input" data-entity="empresa" data-idx="${i}" data-field="nome" value="${esc(emp.nome)}" /></td>
@@ -432,6 +434,7 @@ function renderEstadosTable() {
 
   const { by, dir } = tableSorts.estados;
   const sorted = sortedEntities(s, by, dir);
+  const idxMap = new Map(s.map((item, i) => [item, i]));
 
   let html = `<div class="table-wrap"><table>
     <thead><tr>
@@ -447,7 +450,7 @@ function renderEstadosTable() {
     <tbody>`;
 
   for (const est of sorted) {
-    const i = s.indexOf(est);
+    const i = idxMap.get(est);
     const parentOpts = s
       .filter(x => x.id !== est.id)
       .map(x => `<option value="${esc(x.id)}" ${est.parent_id === x.id ? 'selected' : ''}>${esc(x.nome || x.id)}</option>`)
