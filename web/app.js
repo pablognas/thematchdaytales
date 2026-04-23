@@ -26,6 +26,7 @@ import {
   tickMensal,
   applyScheduledConversions, applyScheduledInjections,
   EMPRESA_CONVERSIONS, ESTADO_CONVERSIONS, getPessoaConversions,
+  transferFundos, transferPatrimonio,
 } from '../src/core/engine.js';
 import {
   getCurrentTick, setCurrentTick, advanceTick,
@@ -50,6 +51,14 @@ let modalAtivos     = {};
 // ── Map state ──────────────────────────────────────────────────────────────
 let mapaWorld  = {};          // sparse map data (lat → lon → cell)
 let mapaConfig = null;        // { biomas: string[], climas: string[] }
+
+// ── Table sort state ───────────────────────────────────────────────────────
+// by: 'nome' | 'patrimonio'  dir: 1 = ascending, -1 = descending
+let tableSorts = {
+  pessoas:  { by: 'nome', dir: 1 },
+  empresas: { by: 'nome', dir: 1 },
+  estados:  { by: 'nome', dir: 1 },
+};
 
 // Viewport: center + dimensions (columns = lon count, rows = lat count)
 let mapaVp = { latCenter: 0, lonCenter: 0, rows: 30, cols: 60 };
@@ -102,6 +111,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
     if (btn.dataset.tab === 'agendamento') renderScheduleTab();
     if (btn.dataset.tab === 'mapa')        initMapaTab();
+    if (btn.dataset.tab === 'jogadores')   renderJogadoresTable();
   });
 });
 
@@ -245,9 +255,66 @@ function renderAll() {
   renderPessoasTable();
   renderEmpresasTable();
   renderEstadosTable();
+  renderJogadoresTable();
   updateTickCounter();
   populateMapaEstadoSelects();
+  populateTransferSelects();
 }
+
+// ── Sorting helpers ────────────────────────────────────────────────────────
+
+/**
+ * Return a copy of an entity array sorted by the current sort state.
+ * @param {Object[]} arr  array of entities
+ * @param {'nome'|'patrimonio'} by
+ * @param {1|-1} dir  1 = ascending, -1 = descending
+ * @returns {Object[]}
+ */
+function sortedEntities(arr, by, dir) {
+  return [...arr].sort((a, b) => {
+    let va, vb;
+    if (by === 'patrimonio') {
+      va = a.patrimonio ?? a.atributos?.patrimonio ?? 0;
+      vb = b.patrimonio ?? b.atributos?.patrimonio ?? 0;
+      return dir * (va - vb);
+    }
+    va = (a.nome || a.id || '').toLocaleLowerCase('pt-BR');
+    vb = (b.nome || b.id || '').toLocaleLowerCase('pt-BR');
+    return dir * va.localeCompare(vb, 'pt-BR');
+  });
+}
+
+/**
+ * Build sort-header HTML for a column.
+ * @param {string} label  display text
+ * @param {'nome'|'patrimonio'} key
+ * @param {'pessoas'|'empresas'|'estados'} tableKey
+ * @returns {string}
+ */
+function sortHeader(label, key, tableKey) {
+  const { by, dir } = tableSorts[tableKey];
+  const arrow = by === key ? (dir === 1 ? ' ▲' : ' ▼') : '';
+  return `<th class="sortable-th" data-sort-key="${esc(key)}" data-sort-table="${esc(tableKey)}" style="cursor:pointer">${esc(label)}${arrow}</th>`;
+}
+
+// Delegate sort-header clicks on any table container
+document.addEventListener('click', e => {
+  const th = e.target.closest('.sortable-th');
+  if (!th) return;
+  const key   = th.dataset.sortKey;
+  const table = th.dataset.sortTable;
+  if (!tableSorts[table]) return;
+  const cur = tableSorts[table];
+  if (cur.by === key) {
+    cur.dir = cur.dir === 1 ? -1 : 1;
+  } else {
+    cur.by  = key;
+    cur.dir = 1;
+  }
+  if (table === 'pessoas')  renderPessoasTable();
+  if (table === 'empresas') renderEmpresasTable();
+  if (table === 'estados')  renderEstadosTable();
+});
 
 // ── Pessoas table ────────────────────────────────────────────────────────────
 function renderPessoasTable() {
@@ -258,17 +325,25 @@ function renderPessoasTable() {
     return;
   }
 
+  const { by, dir } = tableSorts.pessoas;
+  const sorted = sortedEntities(p, by, dir);
+
   let html = `<div class="table-wrap"><table>
     <thead><tr>
-      <th>ID</th><th>Nome</th><th>Classe</th><th>Estado</th>
-      <th>Influência</th><th>Patrimônio</th><th>Moral</th><th>Reputação</th>
+      <th>ID</th>
+      ${sortHeader('Nome', 'nome', 'pessoas')}
+      <th>Classe</th><th>Estado</th>
+      <th>Influência</th>
+      ${sortHeader('Patrimônio', 'patrimonio', 'pessoas')}
+      <th>Moral</th><th>Reputação</th>
       <th>Renda Mensal</th><th>Caixa</th>
       <th>Gasto Infl.</th><th>Gasto Moral</th><th>Gasto Rep.</th>
       <th>Ativos</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
-  for (const [i, pessoa] of p.entries()) {
+  for (const pessoa of sorted) {
+    const i = p.indexOf(pessoa);
     const badgeClass = `badge-${pessoa.classe}`;
     html += `<tr>
       <td class="id-cell">${esc(pessoa.id)}</td>
@@ -303,17 +378,24 @@ function renderEmpresasTable() {
     return;
   }
 
+  const { by, dir } = tableSorts.empresas;
+  const sorted = sortedEntities(e, by, dir);
+
   let html = `<div class="table-wrap"><table>
     <thead><tr>
-      <th>ID</th><th>Nome</th><th>Dono</th><th>Estado</th>
-      <th>Patrimônio</th><th>Funcionários</th><th>Renda</th><th>Produção</th>
+      <th>ID</th>
+      ${sortHeader('Nome', 'nome', 'empresas')}
+      <th>Dono</th><th>Estado</th>
+      ${sortHeader('Patrimônio', 'patrimonio', 'empresas')}
+      <th>Funcionários</th><th>Renda</th><th>Produção</th>
       <th>Moral Corp.</th><th>Rep. Corp.</th><th>Lucro</th>
       <th>Sal. Func.</th><th>Manutenção</th><th>Insumos</th>
       <th>Ativos</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
-  for (const [i, emp] of e.entries()) {
+  for (const emp of sorted) {
+    const i = e.indexOf(emp);
     html += `<tr>
       <td class="id-cell">${esc(emp.id)}</td>
       <td><input class="cell-input" data-entity="empresa" data-idx="${i}" data-field="nome" value="${esc(emp.nome)}" /></td>
@@ -348,10 +430,15 @@ function renderEstadosTable() {
     return;
   }
 
+  const { by, dir } = tableSorts.estados;
+  const sorted = sortedEntities(s, by, dir);
+
   let html = `<div class="table-wrap"><table>
     <thead><tr>
-      <th>ID</th><th>Nome</th><th>Tipo</th><th>Parent</th><th>Descrição</th>
-      <th>Patrimônio</th>
+      <th>ID</th>
+      ${sortHeader('Nome', 'nome', 'estados')}
+      <th>Tipo</th><th>Parent</th><th>Descrição</th>
+      ${sortHeader('Patrimônio', 'patrimonio', 'estados')}
       <th>Populacão</th><th>Forças Arm.</th><th>Cultura</th><th>Moral Pop.</th>
       <th>Renda Trib.</th><th>IR PF</th><th>IR PJ</th><th>Imp. Prod.</th>
       <th>Sal. Pol.</th><th>Incent. Emp.</th><th>Inv. Cultura</th><th>Inv. FA</th>
@@ -359,7 +446,8 @@ function renderEstadosTable() {
     </tr></thead>
     <tbody>`;
 
-  for (const [i, est] of s.entries()) {
+  for (const est of sorted) {
+    const i = s.indexOf(est);
     const parentOpts = s
       .filter(x => x.id !== est.id)
       .map(x => `<option value="${esc(x.id)}" ${est.parent_id === x.id ? 'selected' : ''}>${esc(x.nome || x.id)}</option>`)
@@ -505,6 +593,9 @@ const FIELD_SETTERS = {
   tipo:      (e, v) => { e.tipo      = v; },
   parent_id: (e, v) => { e.parent_id = v; },
   descricao: (e, v) => { e.descricao = v; },
+  // Pessoa jogador stats
+  nota_scouting: (e, v) => { e.nota_scouting = v; },
+  valor_mercado:  (e, v) => { e.valor_mercado  = v; },
 };
 
 /** Apply a known field update to an entity. Ignores unknown paths. */
@@ -602,9 +693,104 @@ function closeAtivosModal() {
   modalAtivos     = {};
 }
 
-// ── Scheduling tab ────────────────────────────────────────────────────────────
+// ── Jogadores (player stats) ──────────────────────────────────────────────────
 
-// Entity type sub-tabs in scheduling
+function renderJogadoresTable() {
+  const container = document.getElementById('table-jogadores');
+  if (!container) return;
+  const jogadores = world.pessoas.filter(p => p.classe === 'jogador');
+
+  if (!jogadores.length) {
+    container.innerHTML = '<div class="empty-state">Nenhum jogador carregado. Carregue pessoas com classe "jogador".</div>';
+    return;
+  }
+
+  let html = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>ID</th><th>Nome</th><th>Estado</th>
+      <th>Nota de Scouting (0–10)</th><th>Valor de Mercado</th>
+    </tr></thead>
+    <tbody>`;
+
+  for (const jogador of jogadores) {
+    const i = world.pessoas.indexOf(jogador);
+    html += `<tr>
+      <td class="id-cell">${esc(jogador.id)}</td>
+      <td>${esc(jogador.nome)}</td>
+      <td class="id-cell">${esc(jogador.estado_id || '–')}</td>
+      <td class="num">
+        <input class="cell-input num" type="number" min="0" max="10" step="0.1"
+          data-entity="pessoa" data-idx="${i}" data-field="nota_scouting"
+          value="${fmtDec(jogador.nota_scouting || 0, 1)}" style="width:80px" />
+      </td>
+      <td class="num">
+        <input class="cell-input num" type="number" min="0" step="100000"
+          data-entity="pessoa" data-idx="${i}" data-field="valor_mercado"
+          value="${Math.round(jogador.valor_mercado || 0)}" style="width:130px" />
+      </td>
+    </tr>`;
+  }
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+  bindTableInputs(container);
+}
+
+// ── Transferências ────────────────────────────────────────────────────────────
+
+/**
+ * Populate both entity selects in the transfer form based on the currently
+ * chosen entity types.
+ */
+function populateTransferSelects() {
+  for (const side of ['src', 'dst']) {
+    const typeEl   = document.getElementById(`tr-${side}-type`);
+    const entityEl = document.getElementById(`tr-${side}-entity`);
+    if (!typeEl || !entityEl) return;
+    const arr = getEntityArray(typeEl.value);
+    entityEl.innerHTML = arr.length
+      ? arr.map(x => `<option value="${esc(x.id)}">${esc(x.nome || x.id)}</option>`).join('')
+      : '<option value="">— sem dados carregados —</option>';
+  }
+}
+
+document.getElementById('tr-src-type')?.addEventListener('change', populateTransferSelects);
+document.getElementById('tr-dst-type')?.addEventListener('change', populateTransferSelects);
+
+document.getElementById('btn-execute-transfer')?.addEventListener('click', () => {
+  const srcType  = document.getElementById('tr-src-type').value;
+  const srcId    = document.getElementById('tr-src-entity').value;
+  const dstType  = document.getElementById('tr-dst-type').value;
+  const dstId    = document.getElementById('tr-dst-entity').value;
+  const amount   = parseFloat(document.getElementById('tr-amount').value) || 0;
+  const trType   = document.getElementById('tr-type').value;
+
+  if (!srcId || !dstId) {
+    setStatus('⚠ Selecione origem e destino.');
+    return;
+  }
+
+  let result;
+  if (trType === 'fundos') {
+    result = transferFundos(world, srcType, srcId, dstType, dstId, amount);
+  } else {
+    result = transferPatrimonio(world, srcType, srcId, dstType, dstId, amount);
+  }
+
+  const logEl = document.getElementById('tr-log');
+  if (result.ok) {
+    renderAll();
+    if (logEl) {
+      const ts = new Date().toLocaleTimeString('pt-BR');
+      logEl.textContent = `[${ts}] ${result.msg}\n` + logEl.textContent;
+    }
+    setStatus(`✅ ${result.msg}`);
+  } else {
+    setStatus(`⚠ ${result.msg}`);
+  }
+});
+
+// ── Scheduling tab ────────────────────────────────────────────────────────────
 document.querySelectorAll('.entity-type-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.entity-type-btn').forEach(b => b.classList.remove('active'));
@@ -1652,3 +1838,4 @@ document.getElementById('mapa-edit-clear').addEventListener('click', () => {
 updateTickCounter();
 populateInjectionEntitySelect();
 renderInjectionsList();
+populateTransferSelects();
