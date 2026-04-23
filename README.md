@@ -228,34 +228,37 @@ Each tick performs the following steps **in order**:
 
 ## Map Editor (🧭 Mapa)
 
-### `data/world/mapa.json`
+### `data/world/mapa.csv`
 
-The world map is stored as a **sparse JSON object** — only cells that have been explicitly painted are stored.
+The world map is stored as a **sparse CSV file** — only cells that have been explicitly painted are written. Missing coordinates (not listed in the CSV) are treated as default water cells with empty metadata.
 
-**Format:** first key = latitude (string, integer -90..90), second key = longitude (string, integer -180..180).
+**Format:** header row followed by one row per non-default cell.
 
-```json
-{
-  "10": {
-    "-50": { "tipo": "terra", "estado_id": "br_sp", "bioma": "mata_atlantica", "clima": "tropical" },
-    "-51": { "tipo": "terra", "estado_id": "br_sp" }
-  },
-  "9": {
-    "-50": { "tipo": "agua", "estado_id": "br", "bioma": "oceano" }
-  }
-}
+```csv
+lat,lon,tipo,estado_id,bioma,clima
+10,-50,terra,br_sp,mata_atlantica,tropical
+10,-49,terra,br_sp,,
+9,-50,agua,br_rj,oceano,tropical
 ```
 
-**Cell fields (all optional):**
+**Column schema:**
 
-| Field | Values | Description |
+| Column | Type | Description |
 |---|---|---|
-| `tipo` | `"agua"` \| `"terra"` | Cell type (water or land). If absent, cell is unpainted. |
-| `estado_id` | any estado `id` | Government unit associated with the cell. Allowed even when `tipo = "agua"` (mar territorial). |
+| `lat` | integer −90..90 | Latitude of the cell |
+| `lon` | integer −180..180 | Longitude of the cell |
+| `tipo` | `agua` \| `terra` \| *(empty)* | Cell type. If absent or empty, treated as `agua`. |
+| `estado_id` | string | Government unit associated with the cell. Allowed even when `tipo = "agua"` (mar territorial). |
 | `bioma` | string | Biome name (from `data/config/biomas.json`). |
 | `clima` | string | Climate name (from `data/config/climas.json`). |
 
-Empty cells (no fields set) are removed automatically to keep the file sparse.
+**Sparse semantics:**
+
+- Cells **not present** in the CSV → default water (`tipo = "agua"`, no metadata).
+- Cells with `tipo` empty → treated as `agua`.
+- Duplicate `(lat, lon)` rows → **last row wins**.
+- On export, rows that are exactly default water (tipo `agua` with no `estado_id`/`bioma`/`clima`) are **not written**, keeping the file lightweight.
+- Water cells that carry metadata (e.g. `estado_id` for mar territorial) **are** written.
 
 ### Viewport & Navigation
 
@@ -289,8 +292,8 @@ Edit these files to add or remove options without changing any code.
 
 ### Import / Export
 
-- **📂 Importar** (toolbar): load a `mapa.json` file from disk, replacing the current map.
-- **⬇ Exportar mapa.json** (toolbar): download the current map as `mapa.json`.
+- **📂 Importar** (toolbar): load a `mapa.csv` file from disk, replacing the current map. Invalid rows (out-of-range lat/lon) are ignored; the status bar reports counts of imported and ignored rows.
+- **⬇ Exportar mapa.csv** (toolbar): download the current map as `mapa.csv`. Only non-default-water cells are written, keeping the file sparse and lightweight.
 
 ### Deletion Validation
 
