@@ -32,6 +32,10 @@ import {
   scheduleConversion, unscheduleConversion, getAllScheduledConversions, getConversionsForTick, clearConversionsForTick,
   scheduleInjection, removeInjection, getAllScheduledInjections, getInjectionsForTick, clearInjectionsForTick,
 } from '../src/core/scheduler.js';
+import {
+  initDb, saveDb, exportDbFile, importDbFromBuffer,
+  loadWorldFromDb, saveWorldToDb,
+} from '../src/core/db.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
@@ -101,32 +105,54 @@ document.getElementById('file-pessoas').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
   world.pessoas = rowsToPessoas(parseCsv(await readFile(file)));
+  saveWorldToDb(world);
   renderPessoasTable();
-  setStatus(`Carregado: ${file.name}`);
+  setStatus(`Carregado e salvo no DB: ${file.name}`);
 });
 
 document.getElementById('file-empresas').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
   world.empresas = rowsToEmpresas(parseCsv(await readFile(file)));
+  saveWorldToDb(world);
   renderEmpresasTable();
-  setStatus(`Carregado: ${file.name}`);
+  setStatus(`Carregado e salvo no DB: ${file.name}`);
 });
 
 document.getElementById('file-estados').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
   world.estados = rowsToEstados(parseCsv(await readFile(file)));
+  saveWorldToDb(world);
   renderEstadosTable();
-  setStatus(`Carregado: ${file.name}`);
+  setStatus(`Carregado e salvo no DB: ${file.name}`);
 });
 
 document.getElementById('file-ativos').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
   applyAtivos(world, parseCsv(await readFile(file)));
+  saveWorldToDb(world);
   renderAll();
-  setStatus(`Ativos aplicados: ${file.name}`);
+  setStatus(`Ativos aplicados e salvos no DB: ${file.name}`);
+});
+
+// ── Import .db file ─────────────────────────────────────────────────────────
+document.getElementById('file-db').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const buffer = await file.arrayBuffer();
+    importDbFromBuffer(buffer);
+    world = loadWorldFromDb();
+    renderAll();
+    setStatus(`✅ Banco de dados importado: ${file.name}`);
+  } catch (err) {
+    setStatus(`Erro ao importar .db: ${err.message}`);
+    console.error(err);
+  }
+  // Reset so same file can be picked again
+  e.target.value = '';
 });
 
 // ── Load defaults ───────────────────────────────────────────────────────────
@@ -144,8 +170,9 @@ document.getElementById('btn-defaults').addEventListener('click', async () => {
     world.empresas = rowsToEmpresas(parseCsv(eCsv));
     world.estados  = rowsToEstados(parseCsv(sCsv));
     if (aCsv) applyAtivos(world, parseCsv(aCsv));
+    saveWorldToDb(world);
     renderAll();
-    setStatus('✅ Exemplos padrão carregados.');
+    setStatus('✅ Exemplos padrão carregados e salvos no banco de dados.');
   } catch (err) {
     setStatus(`Erro ao carregar exemplos: ${err.message}`);
     console.error(err);
@@ -181,12 +208,24 @@ document.getElementById('btn-tick').addEventListener('click', async () => {
     const newTick = advanceTick();
 
     document.getElementById('log').textContent = log.join('\n');
+    saveWorldToDb(world);
     renderAll();
     setStatus(`✅ Tick ${tick} concluído → agora no Tick ${newTick}`);
   } catch (err) {
     setStatus(`Erro no tick: ${err.message}`);
     console.error(err);
   }
+});
+
+// ── Export DB ────────────────────────────────────────────────────────────────
+document.getElementById('btn-export-db').addEventListener('click', () => {
+  if (!world.pessoas.length && !world.empresas.length && !world.estados.length) {
+    setStatus('⚠ Nenhum dado para exportar.');
+    return;
+  }
+  saveWorldToDb(world); // ensure latest state
+  exportDbFile();
+  setStatus('⬇ world.db exportado.');
 });
 
 // ── Export CSVs ─────────────────────────────────────────────────────────────
@@ -355,6 +394,7 @@ function bindTableInputs(container) {
       const obj = getEntityArray(entity)[parseInt(idx)];
       if (!obj) return;
       setEntityField(obj, field, input.type === 'number' ? parseFloat(input.value) : input.value);
+      saveWorldToDb(world);
     });
   });
 
@@ -365,6 +405,7 @@ function bindTableInputs(container) {
       const obj = getEntityArray(entity)[parseInt(idx)];
       if (!obj) return;
       setEntityField(obj, field, cb.checked);
+      saveWorldToDb(world);
     });
   });
 
@@ -503,6 +544,7 @@ document.getElementById('btn-modal-save').addEventListener('click', () => {
   if (entity) {
     entity.ativos = Object.assign({}, modalAtivos);
     reconcilePatrimonio(entity, modalEntityType);
+    saveWorldToDb(world);
     // Re-render the relevant table
     if (modalEntityType === 'pessoa')  renderPessoasTable();
     if (modalEntityType === 'empresa') renderEmpresasTable();
@@ -1015,6 +1057,7 @@ function saveAddModal() {
   if (!entity) return;
 
   arr.push(entity);
+  saveWorldToDb(world);
 
   if (addEntityType === 'pessoa')  renderPessoasTable();
   if (addEntityType === 'empresa') renderEmpresasTable();
@@ -1051,6 +1094,26 @@ function esc(str) {
 }
 
 // ── Initialise ────────────────────────────────────────────────────────────────
-updateTickCounter();
-populateInjectionEntitySelect();
-renderInjectionsList();
+async function startup() {
+  setStatus('Inicializando banco de dados (sql.js)…');
+  try {
+    await initDb();
+    const restored = loadWorldFromDb();
+    const hasData  = restored.pessoas.length || restored.empresas.length || restored.estados.length;
+    if (hasData) {
+      world = restored;
+      renderAll();
+      setStatus('✅ Dados restaurados do banco de dados SQLite.');
+    } else {
+      setStatus('Banco de dados pronto. Carregue os dados ou use "Carregar Exemplos".');
+    }
+  } catch (err) {
+    setStatus(`⚠ Banco de dados indisponível (verifique conexão para sql.js): ${err.message}`);
+    console.error('startup:', err);
+  }
+  updateTickCounter();
+  populateInjectionEntitySelect();
+  renderInjectionsList();
+}
+
+startup();

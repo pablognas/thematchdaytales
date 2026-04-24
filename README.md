@@ -1,12 +1,155 @@
 # The Matchday Tales — Mini Economic Model Manager
 
-A browser-based simulation manager for a mini economic model. Load CSV world data, run monthly ticks, schedule conversions & financial injections, and export updated CSVs — all without a backend.
+A browser-based simulation manager for a mini economic model. Load world data, run monthly ticks, schedule conversions & financial injections, and export the database — all without a backend.
 
 ---
 
 ## How to Run Locally
 
-> **Important:** The app uses ES Modules (`import`/`export`) and `fetch()` for JSON configs and default CSVs. These APIs require an HTTP server — opening `index.html` directly via `file://` will **not** work due to browser CORS restrictions.
+> **Important:** The app uses ES Modules (`import`/`export`), `fetch()` for JSON configs, and loads **sql.js** (SQLite via WebAssembly) from a CDN. These APIs require an HTTP server **and an internet connection** — opening `index.html` directly via `file://` will **not** work.
+
+### Option 1 — Python (built-in, no install needed)
+
+```bash
+# From the repository root:
+python -m http.server 8000
+```
+
+Then open [http://localhost:8000/web/index.html](http://localhost:8000/web/index.html).
+
+### Option 2 — Node.js `serve`
+
+```bash
+npx serve .
+```
+
+Then open the URL shown in the terminal and navigate to `/web/index.html`.
+
+### Option 3 — VS Code Live Server
+
+Install the **Live Server** extension, right-click `web/index.html` → *Open with Live Server*.
+
+---
+
+## Storage: SQLite (sql.js)
+
+The app uses [sql.js](https://sql.js.org/) — SQLite compiled to WebAssembly — as its primary storage engine:
+
+- **Auto-save:** After every mutation (cell edit, tick, adding/editing entities), the world is automatically saved to a SQLite database in `localStorage`. **Data survives page refreshes.**
+- **Export DB:** Click **💾 Exportar DB** to download a `world.db` binary file (standard SQLite format, openable with any SQLite tool).
+- **Import DB:** Click **📥 Importar DB** to load a `.db` file back into the app.
+- **CSV import (legacy):** The CSV file inputs in each tab are still supported for migrating existing data; imported data is immediately persisted to the SQLite database.
+- **CSV export (legacy):** The **⬇ CSVs** button downloads separate CSV files for backward compatibility.
+
+### SQLite Schema
+
+| Table | Primary key | Key columns |
+|---|---|---|
+| `pessoas` | `id` | nome, classe, estado_id, influencia, patrimonio, moral, reputacao, renda_mensal, caixa, gastos_* |
+| `empresas` | `id` | nome, dono_id, estado_id, patrimonio, funcionarios, renda, producao, moral_corporativa, reputacao_corporativa, lucro, custos_* |
+| `estados` | `id` | nome, patrimonio, populacao, forcas_armadas, cultura, moral_populacao, impostos_*, financas_* |
+| `ativos` | `(owner_type, owner_id, ativo_id)` | valor |
+
+---
+
+## Directory Structure
+
+```
+thematchdaytales/
+├── data/
+│   ├── config/               # Static JSON configuration (read-only at runtime)
+│   │   ├── classes.json
+│   │   ├── atributos.json
+│   │   ├── conversoes.json
+│   │   ├── fluxos_economicos.json
+│   │   └── produtos.json
+│   └── world/                # Example world data (CSV — used by "Carregar Exemplos")
+│       ├── pessoas.csv
+│       ├── empresas.csv
+│       ├── estados.csv
+│       └── ativos.csv
+├── src/
+│   └── core/                 # Browser-safe ESM modules
+│       ├── csv.js            # CSV parse / unparse / download
+│       ├── world.js          # Row <-> typed-object converters + ativos helpers
+│       ├── engine.js         # Monthly tick logic + conversion/injection handlers
+│       ├── scheduler.js      # localStorage-based tick scheduler
+│       └── db.js             # SQLite persistence layer (sql.js wrapper)
+├── web/                      # Static web app
+│   ├── index.html
+│   └── app.js
+└── README.md
+```
+
+---
+
+## Browser App Usage
+
+1. Open `/web/index.html` via an HTTP server (see above).
+2. On first load, click **📂 Carregar Exemplos** to seed the database with example data, **or** use the **📥 Importar DB** button to load an existing `world.db`, **or** use the CSV file inputs in each tab.
+3. Use the **Pessoas / Empresas / Estados** tabs to view and edit entity data. Click the **💎** button in any row to edit that entity's assets (ativos) in a modal. All changes are **auto-saved** to the SQLite database.
+4. Use the **➕ Nova Pessoa / Empresa / Estado** buttons to add new entities via a form.
+5. Use the **📅 Agendamentos** tab to schedule attribute conversions and one-time financial injections.
+6. Click **▶ Rodar Tick** to execute one month. The tick counter increments automatically.
+7. View the simulation log in the **📋 Log** tab.
+8. Click **💾 Exportar DB** to download the full database as `world.db`.
+
+---
+
+## Monthly Tick Logic
+
+Each tick performs the following steps **in order**:
+
+0. **Scheduled conversions** (`applyScheduledConversions`) — apply attribute/asset conversions registered for this tick via the Agendamentos UI. One-time: cleared after execution.
+1. **Scheduled injections** (`applyScheduledInjections`) — apply one-time cash injections registered for this tick. Injections credit `caixa` (pessoas), `lucro` (empresas), or `renda_tributaria` (estados). One-time: cleared after execution.
+2. **Renda → Caixa & IRPF** — Each pessoa receives `renda_mensal * (1 - ir_pf)` in their `caixa`. The IRPF portion goes to `estado.renda_tributaria`.
+3. **IRPJ** — Each empresa pays `lucro * ir_pj` to its state's `renda_tributaria`.
+4. **Dividendos** — 30% of the post-IRPJ `lucro` is credited to the company owner's `caixa`.
+5. **Gastos de classe** — Each pessoa pays class-specific monthly costs from `caixa`. If cash is insufficient, the corresponding attribute drops by 1 point (clamped to class minimum).
+6. **Salários políticos** — Each politician (`classe == 'politico'`) receives `estado.salarios_politicos` from their state's `renda_tributaria`.
+7. **Investimento cultura & FA** — The state deducts `investimento_cultura + investimento_fa` from `renda_tributaria` and increases `cultura`, `forcas_armadas`, and `moral_populacao` accordingly.
+
+---
+
+## Scheduling & Injections
+
+### Conversion matrix
+
+1. Go to **📅 Agendamentos** → **Conversões Agendadas**.
+2. Set the **Tick alvo** (target tick number).
+3. Select the entity type (Pessoas / Empresas / Estados).
+4. Check the boxes for the conversions you want applied when that tick runs.
+5. Conversions are stored in `localStorage` and cleared automatically after execution.
+
+### Financial injections (aportes esporádicos)
+
+1. Go to **📅 Agendamentos** → **Aportes Esporádicos**.
+2. Select entity type, specific entity, amount, and target tick.
+3. Click **+ Agendar**.
+4. The injection is applied automatically when that tick runs, then removed.
+
+---
+
+## JSON Config Files
+
+| File | Purpose |
+|---|---|
+| `classes.json` | Class definitions with attribute limits and monthly costs |
+| `atributos.json` | Attribute metadata and renda-to-point conversion rates |
+| `conversoes.json` | Rules for converting between attributes (including class bonuses) |
+| `fluxos_economicos.json` | Descriptive list of economic flows (documentation reference) |
+| `produtos.json` | Purchasable goods and their attribute effects |
+
+---
+
+## Known Limitations
+
+- **Internet required at startup** for sql.js to load from CDN. The WASM binary (`sql-wasm.wasm`, ~1 MB) is fetched from `cdnjs.cloudflare.com`. For fully offline use, download the file and update `locateFile` in `src/core/db.js`.
+- **localStorage size limit** (~5–10 MB depending on browser). For large worlds, use **Exportar DB** to back up the `.db` file regularly.
+- **CSV parser** (`src/core/csv.js`) does **not** support fields containing commas or newlines. Keep all CSV values simple.
+- Scheduler state (scheduled conversions and injections) is persisted in `localStorage`. Clearing browser storage will lose pending schedules.
+- The engine does not yet model product purchases, inventories, or inter-state migration.
+
 
 ### Option 1 — Python (built-in, no install needed)
 
@@ -73,150 +216,4 @@ thematchdaytales/
 6. View the simulation log in the **📋 Log** tab.
 7. Click **⬇ Exportar CSVs** to download all four updated CSV files.
 
----
 
-## CSV Schemas
-
-### `pessoas.csv`
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | string | Unique identifier |
-| `nome` | string | Display name |
-| `classe` | string | One of: `trabalhador`, `empresario`, `politico`, `jogador` |
-| `estado_id` | string | ID of the person's home state (used for IRPF and salary) |
-| `influencia` | integer (1-5) | Influence attribute |
-| `patrimonio` | integer (1-5) | Wealth attribute — **auto-recomputed from ativos sum** |
-| `moral` | integer (1-5) | Public morality attribute |
-| `reputacao` | integer (1-5) | Reputation attribute |
-| `renda_mensal` | number | Monthly income (before IRPF) |
-| `caixa` | number | Current cash balance |
-| `gastos_influencia` | 0 or 1 | Whether the monthly influence cost is paid (0 = skip, attribute decays) |
-| `gastos_moral` | 0 or 1 | Whether the monthly moral cost is paid |
-| `gastos_reputacao` | 0 or 1 | Whether the monthly reputation cost is paid |
-
-### `empresas.csv`
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | string | Unique identifier |
-| `nome` | string | Company name |
-| `dono_id` | string | `id` of the owning pessoa |
-| `estado_id` | string | State where the company operates (used for IRPJ) |
-| `patrimonio` | number | **NEW** Total net worth — auto-recomputed from ativos sum |
-| `funcionarios` | integer | Number of employees |
-| `renda` | number | Gross revenue |
-| `producao` | number | Production units |
-| `moral_corporativa` | integer (1-5) | Internal morale |
-| `reputacao_corporativa` | integer (1-5) | Public reputation |
-| `lucro` | number | Monthly profit (before IRPJ) |
-| `salario_funcionario` | number | Per-employee salary |
-| `manutencao` | number | Monthly maintenance costs |
-| `insumos` | number | Monthly input costs |
-
-### `estados.csv`
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | string | Unique identifier |
-| `nome` | string | State name |
-| `patrimonio` | number | **NEW** Total state wealth — auto-recomputed from ativos sum |
-| `populacao` | integer | Population count |
-| `forcas_armadas` | number (1-5) | Military strength |
-| `cultura` | number (1-5) | Cultural development level |
-| `moral_populacao` | number (1-5) | Population happiness/morale |
-| `renda_tributaria` | number | Current tax revenue balance |
-| `ir_pf` | decimal (0-1) | Income tax rate for individuals (e.g. `0.15` = 15%) |
-| `ir_pj` | decimal (0-1) | Corporate tax rate (e.g. `0.20` = 20%) |
-| `imp_prod` | decimal (0-1) | Product tax rate |
-| `salarios_politicos` | number | Monthly salary paid to each politician in this state |
-| `incentivos_empresas` | number | Monthly business incentive budget |
-| `investimento_cultura` | number | Monthly culture investment budget |
-| `investimento_fa` | number | Monthly armed-forces investment budget |
-
-### `ativos.csv` (NEW)
-
-Stores assets for all entity types in a flat, normalized format.
-
-| Field | Type | Description |
-|---|---|---|
-| `owner_type` | string | One of: `pessoa`, `empresa`, `estado` |
-| `owner_id` | string | `id` of the owning entity |
-| `ativo_id` | string | Asset identifier (e.g. `imoveis`, `investimentos`) |
-| `valor` | number | Asset value (can be negative for debts) |
-
-**Constraint:** The sum of all `valor` entries for a given `(owner_type, owner_id)` equals the entity's `patrimonio`. When `ativos.csv` is loaded via `applyAtivos()`, `patrimonio` is automatically recomputed.
-
-**Bootstrap:** If an entity has no entry in `ativos.csv`, its `ativos` defaults to `{ patrimonio_geral: <patrimonio> }`.
-
----
-
-## Monthly Tick Logic
-
-Each tick performs the following steps **in order**:
-
-0. **Scheduled conversions** (`applyScheduledConversions`) — apply attribute/asset conversions registered for this tick via the Agendamentos UI. One-time: cleared after execution.
-1. **Scheduled injections** (`applyScheduledInjections`) — apply one-time cash injections registered for this tick. Injections credit `caixa` (pessoas), `lucro` (empresas), or `renda_tributaria` (estados). One-time: cleared after execution.
-2. **Renda → Caixa & IRPF** — Each pessoa receives `renda_mensal * (1 - ir_pf)` in their `caixa`. The IRPF portion goes to `estado.renda_tributaria`.
-3. **IRPJ** — Each empresa pays `lucro * ir_pj` to its state's `renda_tributaria`.
-4. **Dividendos** — 30% of the post-IRPJ `lucro` is credited to the company owner's `caixa`.
-5. **Gastos de classe** — Each pessoa pays class-specific monthly costs from `caixa`. If cash is insufficient, the corresponding attribute drops by 1 point (clamped to class minimum).
-6. **Salários políticos** — Each politician (`classe == 'politico'`) receives `estado.salarios_politicos` from their state's `renda_tributaria`.
-7. **Investimento cultura & FA** — The state deducts `investimento_cultura + investimento_fa` from `renda_tributaria` and increases `cultura`, `forcas_armadas`, and `moral_populacao` accordingly.
-
----
-
-## Scheduling & Injections
-
-### Conversion matrix
-
-1. Go to **📅 Agendamentos** → **Conversões Agendadas**.
-2. Set the **Tick alvo** (target tick number).
-3. Select the entity type (Pessoas / Empresas / Estados).
-4. Check the boxes for the conversions you want applied when that tick runs.
-5. Conversions are stored in `localStorage` and cleared automatically after execution.
-
-**Available conversions:**
-
-| Entity | Conversion ID | Effect |
-|---|---|---|
-| Pessoa | `influencia:reputacao` | -1 influência → +0.5 reputação (taxa from config) |
-| Pessoa | `reputacao:influencia` | -1 reputação → +0.5 influência |
-| Pessoa | `moral:reputacao` | -1 moral → +0.7 reputação |
-| Pessoa | `reputacao:moral` | -1 reputação → +0.7 moral |
-| Pessoa | `patrimonio:influencia` | -1 patrimônio → +0.3 influência |
-| Pessoa | `influencia:patrimonio` | -1 influência → +0.2 patrimônio |
-| Empresa | `lucro_para_patrimonio` | 50% of lucro transferred to patrimônio |
-| Empresa | `lucro_para_moral` | 10% of lucro → +0.1 moral corporativa |
-| Empresa | `lucro_para_reputacao` | 10% of lucro → +0.1 reputação corporativa |
-| Estado | `renda_para_cultura` | Deducts `investimento_cultura` → increases `cultura` |
-| Estado | `renda_para_fa` | Deducts `investimento_fa` → increases `forcas_armadas` |
-| Estado | `renda_para_moral_pop` | 10% of renda → +0.1 moral popular |
-
-### Financial injections (aportes esporádicos)
-
-1. Go to **📅 Agendamentos** → **Aportes Esporádicos**.
-2. Select entity type, specific entity, amount, and target tick.
-3. Click **+ Agendar**.
-4. The injection is applied automatically when that tick runs, then removed.
-
----
-
-## JSON Config Files
-
-| File | Purpose |
-|---|---|
-| `classes.json` | Class definitions with attribute limits and monthly costs |
-| `atributos.json` | Attribute metadata and renda-to-point conversion rates |
-| `conversoes.json` | Rules for converting between attributes (including class bonuses) |
-| `fluxos_economicos.json` | Descriptive list of economic flows (documentation reference) |
-| `produtos.json` | Purchasable goods and their attribute effects |
-
----
-
-## Known Limitations
-
-- **CSV parser** (`src/core/csv.js`) does **not** support fields containing commas or newlines. Keep all CSV values simple.
-- Scheduler state (scheduled conversions and injections) is persisted in `localStorage`. Clearing browser storage will lose pending schedules.
-- The engine does not yet model product purchases, inventories, or inter-state migration.
-- Attribute conversion rates for Pessoas use class-specific overrides from `conversoes.json` automatically; class bonus rules in `conversoes_especiais_por_classe` are applied when matching.
