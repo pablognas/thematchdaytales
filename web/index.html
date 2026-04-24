@@ -345,6 +345,52 @@
     .badge-politico    { background: #3b2a5f; color: #c4b5fd; }
     .badge-jogador     { background: #1a3a2a; color: #6ee7b7; }
 
+    /* ── Scouts Modal ─────────────────────────────────────────────────────── */
+    .modal-scouts { min-width: 580px; max-width: 760px; }
+    .scouts-sections { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .scouts-section { flex: 1; min-width: 230px; }
+    .scouts-section-title {
+      font-size: 0.85rem;
+      color: var(--yellow);
+      margin-bottom: 0.6rem;
+      font-weight: 700;
+    }
+    .scout-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.35rem;
+    }
+    .scout-label { font-size: 0.78rem; flex: 1; }
+    .scouts-pts { color: var(--muted); font-size: 0.7rem; margin-left: 0.2rem; }
+    .scouts-gk-badge {
+      background: var(--accent);
+      color: #0f1117;
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 3px;
+      vertical-align: middle;
+    }
+    .scouts-result {
+      background: #111827;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      margin-top: 1rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .scouts-result-item { text-align: center; }
+    .scouts-result-label { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.25rem; }
+    .scouts-result-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: var(--mono);
+    }
+
     /* ── Add Entity Modal Form ───────────────────────────────────────────── */
     .modal-add { min-width: 480px; }
 
@@ -552,7 +598,7 @@
   <!-- ── Jogadores ───────────────────────────────────────────────────────── -->
   <section id="tab-jogadores" class="tab-panel" role="tabpanel">
     <div class="import-bar">
-      <p style="color:var(--muted);font-size:0.85rem">Edite a nota de scouting e o valor de mercado de cada jogador. Os dados são persistidos junto com o CSV de pessoas.</p>
+      <p style="color:var(--muted);font-size:0.85rem">Gerencie jogadores: edite posição, nota e valor de mercado diretamente, ou clique em <strong>⚽ Scouts</strong> para registrar os scouts de uma partida e calcular a nova nota e valor.</p>
     </div>
     <div id="table-jogadores"><div class="empty-state">Nenhum jogador carregado. Carregue pessoas com classe "jogador".</div></div>
   </section>
@@ -810,6 +856,35 @@
     <div class="modal-actions">
       <button id="btn-modal-cancel" class="btn-ghost">Cancelar</button>
       <button id="btn-modal-save"   class="btn-blue" >Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scouts Modal ──────────────────────────────────────────────────────── -->
+<div id="modal-scouts" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="scouts-modal-title">
+  <div class="modal modal-scouts">
+    <h3 id="scouts-modal-title">⚽ Scouts</h3>
+    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem">
+      Informe os scouts (eventos) da partida. Campos marcados com <span class="scouts-gk-badge">GK</span> são exclusivos de goleiros.
+    </p>
+    <div id="scouts-form"></div>
+    <div class="scouts-result">
+      <div class="scouts-result-item">
+        <div class="scouts-result-label">Nota da partida</div>
+        <div class="scouts-result-value" id="scouts-match-score">0.00</div>
+      </div>
+      <div class="scouts-result-item">
+        <div class="scouts-result-label">Nota média (nova)</div>
+        <div class="scouts-result-value" id="scouts-new-avg">0.00</div>
+      </div>
+      <div class="scouts-result-item">
+        <div class="scouts-result-label">Valor de mercado (novo)</div>
+        <div class="scouts-result-value" id="scouts-new-market">0</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="btn-scouts-cancel" class="btn-ghost">Cancelar</button>
+      <button id="btn-scouts-apply" class="btn-green">✅ Aplicar</button>
     </div>
   </div>
 </div>
