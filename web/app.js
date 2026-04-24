@@ -137,15 +137,15 @@ function tickLabel(tick) {
 
 /** Read the scheduled-conversion target tick from the month+year inputs. */
 function getSchedTick() {
-  const m = parseInt(document.getElementById('sched-tick-month').value) || 1;
-  const y = parseInt(document.getElementById('sched-tick-year').value)  || TICK_EPOCH_YEAR;
+  const m = Math.min(12, Math.max(1, parseInt(document.getElementById('sched-tick-month').value) || 1));
+  const y = Math.max(TICK_EPOCH_YEAR, parseInt(document.getElementById('sched-tick-year').value) || TICK_EPOCH_YEAR);
   return dateToTick(m, y);
 }
 
 /** Read the injection target tick from the month+year inputs. */
 function getInjTick() {
-  const m = parseInt(document.getElementById('inj-tick-month').value) || 1;
-  const y = parseInt(document.getElementById('inj-tick-year').value)  || TICK_EPOCH_YEAR;
+  const m = Math.min(12, Math.max(1, parseInt(document.getElementById('inj-tick-month').value) || 1));
+  const y = Math.max(TICK_EPOCH_YEAR, parseInt(document.getElementById('inj-tick-year').value) || TICK_EPOCH_YEAR);
   return dateToTick(m, y);
 }
 
@@ -1257,6 +1257,12 @@ document.getElementById('sched-tick-month').addEventListener('change', renderCon
 document.getElementById('sched-tick-year').addEventListener('change', renderConversionMatrix);
 
 function renderScheduleTab() {
+  // Sync both sets of date inputs to the current game tick
+  const { month, year } = tickToDate(getCurrentTick());
+  document.getElementById('sched-tick-month').value = month;
+  document.getElementById('sched-tick-year').value  = year;
+  document.getElementById('inj-tick-month').value   = month;
+  document.getElementById('inj-tick-year').value    = year;
   renderConversionMatrix();
   renderInjectionsList();
   populateInjectionEntitySelect();
@@ -1459,6 +1465,7 @@ function sumDirectChildrenPopulation(parentId, estados) {
 function updatePopulacaoPai(parentId) {
   const parent = world.estados.find(s => s.id === parentId);
   if (!parent) return;
+  if (!parent.atributos) parent.atributos = { populacao: 0, forcas_armadas: 1, cultura: 1, moral_populacao: 3 };
   const total = sumDirectChildrenPopulation(parentId, world.estados);
   parent.atributos.populacao = total;
   renderEstadosTable();
@@ -1505,10 +1512,10 @@ function deleteEntity(type, id) {
   }
 
   // ── Confirmation dialog ────────────────────────────────────────────────
-  const typeLabel  = type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
-  const entity     = getEntityArray(type).find(x => x.id === id);
+  const label       = entityTypeLabel(type);
+  const entity      = getEntityArray(type).find(x => x.id === id);
   const displayName = entity ? (entity.nome || entity.id) : id;
-  if (!window.confirm(`Excluir ${typeLabel} "${displayName}" (${id})?\nEsta ação não pode ser desfeita.`)) return;
+  if (!window.confirm(`Excluir ${label} "${displayName}" (${id})?\nEsta ação não pode ser desfeita.`)) return;
 
   // ── Remove from world ─────────────────────────────────────────────────
   if (type === 'pessoa') {
@@ -1527,7 +1534,7 @@ function deleteEntity(type, id) {
   removeAllInjectionsForEntity(type, id);
   renderInjectionsList();
 
-  setStatus(`🗑 ${typeLabel} "${id}" excluído(a).`);
+  setStatus(`🗑 ${label} "${id}" excluído(a).`);
 }
 
 // ── Add Entity Modal ──────────────────────────────────────────────────────────
@@ -1953,8 +1960,7 @@ function saveNewEntity() {
   }
 
   closeAddEntityModal();
-  const typeLabel = type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
-  setStatus(`✅ ${typeLabel} "${id}" adicionado(a) em ${tickLabel(getCurrentTick())}.`);
+  setStatus(`✅ ${entityTypeLabel(type)} "${id}" adicionado(a) em ${tickLabel(getCurrentTick())}.`);
 }
 
 document.getElementById('btn-add-entity-save').addEventListener('click', saveNewEntity);
