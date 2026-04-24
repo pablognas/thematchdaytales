@@ -53,6 +53,8 @@ export function rowsToPessoas(rows) {
       posicao:           r.posicao           || '',
       clube:             r.clube             || '',
       clube_emprestador: r.clube_emprestador || '',
+      tick_registro:     toNum(r.tick_registro, 0),
+      tick_saida:        toNum(r.tick_saida,    0),
       // Default ativos: single entry matching patrimonio
       ativos: { patrimonio_geral: patrimonio },
     };
@@ -85,6 +87,8 @@ export function pessoasToRows(pessoas) {
     posicao:           p.posicao           || '',
     clube:             p.clube             || '',
     clube_emprestador: p.clube_emprestador || '',
+    tick_registro:     p.tick_registro     || 0,
+    tick_saida:        p.tick_saida        || 0,
   }));
 }
 
@@ -118,6 +122,8 @@ export function rowsToEmpresas(rows) {
         manutencao:          toNum(r.manutencao, 0),
         insumos:             toNum(r.insumos, 0),
       },
+      tick_registro: toNum(r.tick_registro, 0),
+      tick_saida:    toNum(r.tick_saida,    0),
       ativos: { patrimonio_geral: patrimonio },
     };
   });
@@ -144,6 +150,8 @@ export function empresasToRows(empresas) {
     salario_funcionario:   e.custos.salario_funcionario,
     manutencao:            e.custos.manutencao,
     insumos:               e.custos.insumos,
+    tick_registro:         e.tick_registro || 0,
+    tick_saida:            e.tick_saida    || 0,
   }));
 }
 
@@ -183,6 +191,8 @@ export function rowsToEstados(rows) {
         investimento_cultura: toNum(r.investimento_cultura, 0),
         investimento_fa:      toNum(r.investimento_fa, 0),
       },
+      tick_registro: toNum(r.tick_registro, 0),
+      tick_saida:    toNum(r.tick_saida,    0),
       ativos: { patrimonio_geral: patrimonio },
     };
   });
@@ -213,6 +223,8 @@ export function estadosToRows(estados) {
     incentivos_empresas:  s.financas.incentivos_empresas,
     investimento_cultura: s.financas.investimento_cultura,
     investimento_fa:      s.financas.investimento_fa,
+    tick_registro:        s.tick_registro || 0,
+    tick_saida:           s.tick_saida    || 0,
   }));
 }
 

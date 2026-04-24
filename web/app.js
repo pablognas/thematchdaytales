@@ -72,6 +72,9 @@ let tableSorts = {
 // Jogadores club filter state
 let jogadoresClubeFilter = '';
 
+// Show/hide archived entities across all tables
+let mostrarArquivados = false;
+
 // Viewport: center + dimensions (columns = lon count, rows = lat count)
 let mapaVp = { latCenter: 0, lonCenter: 0, rows: 30, cols: 60 };
 
@@ -110,8 +113,44 @@ function fmtDec(n, digits = 2) {
   return Number.isFinite(n) ? n.toFixed(digits) : String(n);
 }
 
+// ── Tick ↔ Date helpers ───────────────────────────────────────────────────────
+// Tick 1 = January 1850. Each tick represents one month.
+const TICK_EPOCH_YEAR = 1850;
+
+/** Convert a tick number (≥1) to {month, year}. Tick 1 = Jan 1850. */
+function tickToDate(tick) {
+  const offset = Math.max(0, tick - 1);
+  return { month: (offset % 12) + 1, year: TICK_EPOCH_YEAR + Math.floor(offset / 12) };
+}
+
+/** Convert month (1–12) and year (≥1850) to a tick number. */
+function dateToTick(month, year) {
+  return (year - TICK_EPOCH_YEAR) * 12 + month;
+}
+
+/** Format a tick as "M/YYYY" string, or "—" if zero/unset. */
+function tickLabel(tick) {
+  if (!tick || tick <= 0) return '—';
+  const { month, year } = tickToDate(tick);
+  return `${month}/${year}`;
+}
+
+/** Read the scheduled-conversion target tick from the month+year inputs. */
+function getSchedTick() {
+  const m = Math.min(12, Math.max(1, parseInt(document.getElementById('sched-tick-month').value) || 1));
+  const y = Math.max(TICK_EPOCH_YEAR, parseInt(document.getElementById('sched-tick-year').value) || TICK_EPOCH_YEAR);
+  return dateToTick(m, y);
+}
+
+/** Read the injection target tick from the month+year inputs. */
+function getInjTick() {
+  const m = Math.min(12, Math.max(1, parseInt(document.getElementById('inj-tick-month').value) || 1));
+  const y = Math.max(TICK_EPOCH_YEAR, parseInt(document.getElementById('inj-tick-year').value) || TICK_EPOCH_YEAR);
+  return dateToTick(m, y);
+}
+
 function updateTickCounter() {
-  document.getElementById('tick-counter').textContent = getCurrentTick();
+  document.getElementById('tick-counter').textContent = tickLabel(getCurrentTick());
 }
 
 // ── Tab navigation ──────────────────────────────────────────────────────────
@@ -127,6 +166,13 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'elenco')      renderElencoTab();
     if (btn.dataset.tab === 'transferencias') populateJogadorTransferSelects();
   });
+});
+
+document.getElementById('toggle-mostrar-arquivados').addEventListener('change', e => {
+  mostrarArquivados = e.target.checked;
+  renderPessoasTable();
+  renderEmpresasTable();
+  renderEstadosTable();
 });
 
 // ── File input helpers ──────────────────────────────────────────────────────
@@ -226,7 +272,7 @@ document.getElementById('btn-tick').addEventListener('click', async () => {
 
     document.getElementById('log').textContent = log.join('\n');
     renderAll();
-    setStatus(`✅ Tick ${tick} concluído → agora no Tick ${newTick}`);
+    setStatus(`✅ ${tickLabel(tick)} concluído → agora em ${tickLabel(newTick)}`);
   } catch (err) {
     setStatus(`Erro no tick: ${err.message}`);
     console.error(err);
@@ -347,9 +393,15 @@ function renderPessoasTable() {
     return;
   }
 
+  const toShow = mostrarArquivados ? p : p.filter(x => !x.tick_saida);
   const { by, dir } = tableSorts.pessoas;
-  const sorted = sortedEntities(p, by, dir);
+  const sorted = sortedEntities(toShow, by, dir);
   const idxMap = new Map(p.map((item, i) => [item, i]));
+
+  if (!sorted.length) {
+    container.innerHTML = '<div class="empty-state">Todos os registros estão arquivados. Marque "Mostrar arquivados" para visualizá-los.</div>';
+    return;
+  }
 
   let html = `<div class="table-wrap"><table>
     <thead><tr>
@@ -361,14 +413,15 @@ function renderPessoasTable() {
       <th>Moral</th><th>Reputação</th>
       <th>Renda Mensal</th><th>Caixa</th>
       <th>Gasto Infl.</th><th>Gasto Moral</th><th>Gasto Rep.</th>
-      <th>Ativos</th><th>Ações</th>
+      <th>Ativos</th><th>Registro</th><th>Saída</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
   for (const pessoa of sorted) {
     const i = idxMap.get(pessoa);
+    const isArchived = !!pessoa.tick_saida;
     const badgeClass = `badge-${pessoa.classe}`;
-    html += `<tr>
+    html += `<tr${isArchived ? ' class="entity-archived"' : ''}>
       <td class="id-cell">${esc(pessoa.id)}</td>
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="nome" value="${esc(pessoa.nome)}" /></td>
       <td><span class="badge ${badgeClass}">${esc(pessoa.classe)}</span></td>
@@ -383,7 +436,15 @@ function renderPessoasTable() {
       <td style="text-align:center"><input type="checkbox" data-entity="pessoa" data-idx="${i}" data-field="gastos_mensais_pagos.moral" ${pessoa.gastos_mensais_pagos.moral ? 'checked' : ''} /></td>
       <td style="text-align:center"><input type="checkbox" data-entity="pessoa" data-idx="${i}" data-field="gastos_mensais_pagos.reputacao" ${pessoa.gastos_mensais_pagos.reputacao ? 'checked' : ''} /></td>
       <td><button class="btn-ghost btn-sm btn-ativos" data-etype="pessoa" data-eid="${esc(pessoa.id)}">💎 ${Object.keys(pessoa.ativos || {}).length}</button></td>
-      <td><button class="btn-red btn-sm btn-delete-entity" data-etype="pessoa" data-eid="${esc(pessoa.id)}">🗑 Excluir</button></td>
+      <td class="num" style="white-space:nowrap">${esc(tickLabel(pessoa.tick_registro))}</td>
+      <td class="num" style="white-space:nowrap">${esc(tickLabel(pessoa.tick_saida))}</td>
+      <td style="white-space:nowrap">
+        ${isArchived
+          ? `<button class="btn-ghost btn-sm btn-reactivate-entity" data-etype="pessoa" data-eid="${esc(pessoa.id)}">🔄 Reativar</button>`
+          : `<button class="btn-ghost btn-sm btn-archive-entity"    data-etype="pessoa" data-eid="${esc(pessoa.id)}">📤 Arquivar</button>`
+        }
+        <button class="btn-red btn-sm btn-delete-entity" data-etype="pessoa" data-eid="${esc(pessoa.id)}">🗑 Excluir</button>
+      </td>
     </tr>`;
   }
 
@@ -401,9 +462,15 @@ function renderEmpresasTable() {
     return;
   }
 
+  const toShow = mostrarArquivados ? e : e.filter(x => !x.tick_saida);
   const { by, dir } = tableSorts.empresas;
-  const sorted = sortedEntities(e, by, dir);
+  const sorted = sortedEntities(toShow, by, dir);
   const idxMap = new Map(e.map((item, i) => [item, i]));
+
+  if (!sorted.length) {
+    container.innerHTML = '<div class="empty-state">Todos os registros estão arquivados. Marque "Mostrar arquivados" para visualizá-los.</div>';
+    return;
+  }
 
   let html = `<div class="table-wrap"><table>
     <thead><tr>
@@ -414,13 +481,14 @@ function renderEmpresasTable() {
       <th>Funcionários</th><th>Renda</th><th>Produção</th>
       <th>Moral Corp.</th><th>Rep. Corp.</th><th>Lucro</th>
       <th>Sal. Func.</th><th>Manutenção</th><th>Insumos</th>
-      <th>Ativos</th><th>Ações</th>
+      <th>Ativos</th><th>Registro</th><th>Saída</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
   for (const emp of sorted) {
     const i = idxMap.get(emp);
-    html += `<tr>
+    const isArchived = !!emp.tick_saida;
+    html += `<tr${isArchived ? ' class="entity-archived"' : ''}>
       <td class="id-cell">${esc(emp.id)}</td>
       <td><input class="cell-input" data-entity="empresa" data-idx="${i}" data-field="nome" value="${esc(emp.nome)}" /></td>
       <td class="id-cell">${esc(emp.dono_id)}</td>
@@ -436,7 +504,15 @@ function renderEmpresasTable() {
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="custos.manutencao" value="${emp.custos.manutencao}" style="width:90px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="custos.insumos" value="${emp.custos.insumos}" style="width:90px" /></td>
       <td><button class="btn-ghost btn-sm btn-ativos" data-etype="empresa" data-eid="${esc(emp.id)}">💎 ${Object.keys(emp.ativos || {}).length}</button></td>
-      <td><button class="btn-red btn-sm btn-delete-entity" data-etype="empresa" data-eid="${esc(emp.id)}">🗑 Excluir</button></td>
+      <td class="num" style="white-space:nowrap">${esc(tickLabel(emp.tick_registro))}</td>
+      <td class="num" style="white-space:nowrap">${esc(tickLabel(emp.tick_saida))}</td>
+      <td style="white-space:nowrap">
+        ${isArchived
+          ? `<button class="btn-ghost btn-sm btn-reactivate-entity" data-etype="empresa" data-eid="${esc(emp.id)}">🔄 Reativar</button>`
+          : `<button class="btn-ghost btn-sm btn-archive-entity"    data-etype="empresa" data-eid="${esc(emp.id)}">📤 Arquivar</button>`
+        }
+        <button class="btn-red btn-sm btn-delete-entity" data-etype="empresa" data-eid="${esc(emp.id)}">🗑 Excluir</button>
+      </td>
     </tr>`;
   }
 
@@ -454,9 +530,18 @@ function renderEstadosTable() {
     return;
   }
 
+  const toShow = mostrarArquivados ? s : s.filter(x => !x.tick_saida);
   const { by, dir } = tableSorts.estados;
-  const sorted = sortedEntities(s, by, dir);
+  const sorted = sortedEntities(toShow, by, dir);
   const idxMap = new Map(s.map((item, i) => [item, i]));
+
+  if (!sorted.length) {
+    container.innerHTML = '<div class="empty-state">Todos os registros estão arquivados. Marque "Mostrar arquivados" para visualizá-los.</div>';
+    return;
+  }
+
+  // Pre-compute set of estado IDs that have at least one direct child
+  const parentIds = new Set(s.filter(x => x.parent_id).map(x => x.parent_id));
 
   let html = `<div class="table-wrap"><table>
     <thead><tr>
@@ -467,12 +552,14 @@ function renderEstadosTable() {
       <th>Populacão</th><th>Forças Arm.</th><th>Cultura</th><th>Moral Pop.</th>
       <th>Renda Trib.</th><th>IR PF</th><th>IR PJ</th><th>Imp. Prod.</th>
       <th>Sal. Pol.</th><th>Incent. Emp.</th><th>Inv. Cultura</th><th>Inv. FA</th>
-      <th>Ativos</th><th>Ações</th>
+      <th>Ativos</th><th>Registro</th><th>Saída</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
   for (const est of sorted) {
     const i = idxMap.get(est);
+    const isArchived  = !!est.tick_saida;
+    const hasChildren = parentIds.has(est.id);
     const parentOpts = s
       .filter(x => x.id !== est.id)
       .map(x => `<option value="${esc(x.id)}" ${est.parent_id === x.id ? 'selected' : ''}>${esc(x.nome || x.id)}</option>`)
@@ -481,7 +568,7 @@ function renderEstadosTable() {
     const parentWarn  = est.parent_id && !parentValid
       ? ` style="border-color:var(--red)" title="parent_id '${esc(est.parent_id)}' não encontrado"` : '';
 
-    html += `<tr>
+    html += `<tr${isArchived ? ' class="entity-archived"' : ''}>
       <td class="id-cell">${esc(est.id)}</td>
       <td><input class="cell-input" data-entity="estado" data-idx="${i}" data-field="nome" value="${esc(est.nome)}" /></td>
       <td><input class="cell-input" list="tipo-options" data-entity="estado" data-idx="${i}" data-field="tipo" value="${esc(est.tipo || '')}" style="width:100px" placeholder="ex: pais" /></td>
@@ -504,7 +591,16 @@ function renderEstadosTable() {
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_cultura" value="${est.financas.investimento_cultura}" style="width:90px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_fa" value="${est.financas.investimento_fa}" style="width:80px" /></td>
       <td><button class="btn-ghost btn-sm btn-ativos" data-etype="estado" data-eid="${esc(est.id)}">💎 ${Object.keys(est.ativos || {}).length}</button></td>
-      <td><button class="btn-red btn-sm btn-delete-entity" data-etype="estado" data-eid="${esc(est.id)}">🗑 Excluir</button></td>
+      <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_registro))}</td>
+      <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_saida))}</td>
+      <td style="white-space:nowrap">
+        ${hasChildren ? `<button class="btn-ghost btn-sm btn-update-pop" data-eid="${esc(est.id)}" title="Soma a população dos filhos diretos">👥 Atualizar população</button>` : ''}
+        ${isArchived
+          ? `<button class="btn-ghost btn-sm btn-reactivate-entity" data-etype="estado" data-eid="${esc(est.id)}">🔄 Reativar</button>`
+          : `<button class="btn-ghost btn-sm btn-archive-entity"    data-etype="estado" data-eid="${esc(est.id)}">📤 Arquivar</button>`
+        }
+        <button class="btn-red btn-sm btn-delete-entity" data-etype="estado" data-eid="${esc(est.id)}">🗑 Excluir</button>
+      </td>
     </tr>`;
   }
 
@@ -553,6 +649,21 @@ function bindTableInputs(container) {
   // Ativos buttons
   container.querySelectorAll('.btn-ativos').forEach(btn => {
     btn.addEventListener('click', () => openAtivosModal(btn.dataset.etype, btn.dataset.eid));
+  });
+
+  // Archive entity buttons
+  container.querySelectorAll('.btn-archive-entity').forEach(btn => {
+    btn.addEventListener('click', () => archiveEntity(btn.dataset.etype, btn.dataset.eid));
+  });
+
+  // Reactivate entity buttons
+  container.querySelectorAll('.btn-reactivate-entity').forEach(btn => {
+    btn.addEventListener('click', () => reactivateEntity(btn.dataset.etype, btn.dataset.eid));
+  });
+
+  // Update population buttons (estados with children)
+  container.querySelectorAll('.btn-update-pop').forEach(btn => {
+    btn.addEventListener('click', () => updatePopulacaoPai(btn.dataset.eid));
   });
 
   // Delete entity buttons
@@ -1142,9 +1253,16 @@ document.querySelectorAll('.entity-type-btn').forEach(btn => {
   });
 });
 
-document.getElementById('sched-tick').addEventListener('change', renderConversionMatrix);
+document.getElementById('sched-tick-month').addEventListener('change', renderConversionMatrix);
+document.getElementById('sched-tick-year').addEventListener('change', renderConversionMatrix);
 
 function renderScheduleTab() {
+  // Sync both sets of date inputs to the current game tick
+  const { month, year } = tickToDate(getCurrentTick());
+  document.getElementById('sched-tick-month').value = month;
+  document.getElementById('sched-tick-year').value  = year;
+  document.getElementById('inj-tick-month').value   = month;
+  document.getElementById('inj-tick-year').value    = year;
   renderConversionMatrix();
   renderInjectionsList();
   populateInjectionEntitySelect();
@@ -1159,7 +1277,7 @@ function getConversionsForType(type) {
 
 function renderConversionMatrix() {
   const container = document.getElementById('conversion-matrix');
-  const tick      = parseInt(document.getElementById('sched-tick').value) || 0;
+  const tick      = getSchedTick();
   const type      = scheduleEntityType;
   const entities  = getEntityArray(type);
   const convs     = getConversionsForType(type);
@@ -1229,14 +1347,14 @@ document.getElementById('btn-add-injection').addEventListener('click', () => {
   const type   = document.getElementById('inj-type').value;
   const id     = document.getElementById('inj-entity').value;
   const amount = parseFloat(document.getElementById('inj-amount').value) || 0;
-  const tick   = parseInt(document.getElementById('inj-tick').value) || 0;
+  const tick   = getInjTick();
 
   if (!id)     { setStatus('⚠ Selecione uma entidade.'); return; }
   if (!amount) { setStatus('⚠ Informe um valor positivo.'); return; }
 
   scheduleInjection(tick, type, id, amount);
   renderInjectionsList();
-  setStatus(`Aporte de ${fmtNum(amount)} agendado para ${type} "${id}" no tick ${tick}.`);
+  setStatus(`Aporte de ${fmtNum(amount)} agendado para ${type} "${id}" em ${tickLabel(tick)}.`);
 });
 
 function renderInjectionsList() {
@@ -1250,13 +1368,13 @@ function renderInjectionsList() {
 
   let html = `<div class="table-wrap"><table>
     <thead><tr>
-      <th>Tick</th><th>Tipo</th><th>Entidade</th><th>Valor</th><th></th>
+      <th>Mês/Ano</th><th>Tipo</th><th>Entidade</th><th>Valor</th><th></th>
     </tr></thead>
     <tbody>`;
 
   for (const inj of all) {
     html += `<tr>
-      <td class="num">${esc(inj.tick)}</td>
+      <td class="num">${esc(tickLabel(inj.tick))}</td>
       <td>${esc(inj.ownerType)}</td>
       <td class="id-cell">${esc(inj.ownerId)}</td>
       <td class="num">${esc(fmtNum(inj.amount))}</td>
@@ -1284,6 +1402,74 @@ function esc(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// ── Archive / Reactivate Entity ───────────────────────────────────────────────
+
+/** Return a human-readable label for an entity type. */
+function entityTypeLabel(type) {
+  return type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
+}
+
+/**
+ * Mark an entity as removed from the registry by setting tick_saida to the current tick.
+ * The entity remains in the world data and can be reactivated.
+ * @param {'pessoa'|'empresa'|'estado'} type
+ * @param {string} id
+ */
+function archiveEntity(type, id) {
+  const entity = getEntityArray(type).find(x => x.id === id);
+  if (!entity) return;
+  entity.tick_saida = getCurrentTick();
+  if (type === 'pessoa')       renderPessoasTable();
+  else if (type === 'empresa') renderEmpresasTable();
+  else                         renderEstadosTable();
+  setStatus(`📤 ${entityTypeLabel(type)} "${entity.nome || id}" arquivado(a) em ${tickLabel(entity.tick_saida)}.`);
+}
+
+/**
+ * Restore a previously archived entity by clearing its tick_saida.
+ * @param {'pessoa'|'empresa'|'estado'} type
+ * @param {string} id
+ */
+function reactivateEntity(type, id) {
+  const entity = getEntityArray(type).find(x => x.id === id);
+  if (!entity) return;
+  entity.tick_saida = 0;
+  if (type === 'pessoa')       renderPessoasTable();
+  else if (type === 'empresa') renderEmpresasTable();
+  else                         renderEstadosTable();
+  setStatus(`🔄 ${entityTypeLabel(type)} "${entity.nome || id}" reativado(a).`);
+}
+
+// ── Population aggregation ────────────────────────────────────────────────────
+
+/**
+ * Sum the populations of the direct children of a given parent estado.
+ * Only immediate children (parent_id === parentId) are counted; grandchildren
+ * and deeper descendants are intentionally excluded to avoid double counting.
+ * @param {string} parentId
+ * @param {Object[]} estados
+ * @returns {number}
+ */
+function sumDirectChildrenPopulation(parentId, estados) {
+  return estados
+    .filter(s => s.parent_id === parentId)
+    .reduce((sum, child) => sum + (child.atributos?.populacao || 0), 0);
+}
+
+/**
+ * Update the population of a parent estado to the sum of its direct children's populations.
+ * @param {string} parentId
+ */
+function updatePopulacaoPai(parentId) {
+  const parent = world.estados.find(s => s.id === parentId);
+  if (!parent) return;
+  if (!parent.atributos) parent.atributos = { populacao: 0, forcas_armadas: 1, cultura: 1, moral_populacao: 3 };
+  const total = sumDirectChildrenPopulation(parentId, world.estados);
+  parent.atributos.populacao = total;
+  renderEstadosTable();
+  setStatus(`✅ População de "${parent.nome || parent.id}" atualizada: ${fmtNum(total)}`);
 }
 
 // ── Delete Entity ─────────────────────────────────────────────────────────────
@@ -1326,10 +1512,10 @@ function deleteEntity(type, id) {
   }
 
   // ── Confirmation dialog ────────────────────────────────────────────────
-  const typeLabel  = type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
-  const entity     = getEntityArray(type).find(x => x.id === id);
+  const label       = entityTypeLabel(type);
+  const entity      = getEntityArray(type).find(x => x.id === id);
   const displayName = entity ? (entity.nome || entity.id) : id;
-  if (!window.confirm(`Excluir ${typeLabel} "${displayName}" (${id})?\nEsta ação não pode ser desfeita.`)) return;
+  if (!window.confirm(`Excluir ${label} "${displayName}" (${id})?\nEsta ação não pode ser desfeita.`)) return;
 
   // ── Remove from world ─────────────────────────────────────────────────
   if (type === 'pessoa') {
@@ -1348,7 +1534,7 @@ function deleteEntity(type, id) {
   removeAllInjectionsForEntity(type, id);
   renderInjectionsList();
 
-  setStatus(`🗑 ${typeLabel} "${id}" excluído(a).`);
+  setStatus(`🗑 ${label} "${id}" excluído(a).`);
 }
 
 // ── Add Entity Modal ──────────────────────────────────────────────────────────
@@ -1698,6 +1884,8 @@ function saveNewEntity() {
       posicao:           '',
       clube:             '',
       clube_emprestador: '',
+      tick_registro:     getCurrentTick(),
+      tick_saida:        0,
       ativos: { patrimonio_geral: patrimonio },
     });
     renderPessoasTable();
@@ -1722,6 +1910,8 @@ function saveNewEntity() {
         manutencao:          parseFloat(document.getElementById('nef-manut').value)   || 0,
         insumos:             parseFloat(document.getElementById('nef-insumos').value) || 0,
       },
+      tick_registro: getCurrentTick(),
+      tick_saida:    0,
       ativos: { patrimonio_geral: patrimonio },
     });
     renderEmpresasTable();
@@ -1763,13 +1953,14 @@ function saveNewEntity() {
         investimento_fa:      parseFloat(document.getElementById('nef-inv-fa').value)       || 0,
       },
       ativos: { patrimonio_geral: patrimonio },
+      tick_registro: getCurrentTick(),
+      tick_saida:    0,
     });
     renderEstadosTable();
   }
 
   closeAddEntityModal();
-  const typeLabel = type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
-  setStatus(`✅ ${typeLabel} "${id}" adicionado(a).`);
+  setStatus(`✅ ${entityTypeLabel(type)} "${id}" adicionado(a) em ${tickLabel(getCurrentTick())}.`);
 }
 
 document.getElementById('btn-add-entity-save').addEventListener('click', saveNewEntity);

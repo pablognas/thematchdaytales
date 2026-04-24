@@ -11,12 +11,13 @@ const KEY_TICK        = 'matchday_current_tick';
 
 /** @returns {number} */
 export function getCurrentTick() {
-  return parseInt(localStorage.getItem(KEY_TICK) ?? '0', 10);
+  // Math.max(1,...) normalises old saves that stored tick=0 before the M/YYYY epoch change
+  return Math.max(1, parseInt(localStorage.getItem(KEY_TICK) ?? '1', 10));
 }
 
 /** @param {number} tick */
 export function setCurrentTick(tick) {
-  localStorage.setItem(KEY_TICK, String(Math.max(0, tick)));
+  localStorage.setItem(KEY_TICK, String(Math.max(1, tick)));
 }
 
 /** Increment tick by 1 and return the new value. @returns {number} */
