@@ -542,7 +542,9 @@
   </div>
 </div>
 
-<!-- sql.js (SQLite compiled to WebAssembly) must load before the app module. -->
+<!-- sql.js (SQLite compiled to WebAssembly) must load before the app module.
+     For production use, add an integrity="sha512-..." SRI attribute.
+     Hash can be found at: https://cdnjs.com/libraries/sql.js/1.11.0 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.min.js"
         crossorigin="anonymous"></script>
 <script type="module" src="app.js"></script>

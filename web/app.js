@@ -1064,7 +1064,8 @@ function saveAddModal() {
   if (addEntityType === 'estado')  renderEstadosTable();
 
   closeAddModal();
-  setStatus(`✅ ${esc(addEntityType)} "${esc(nome)}" adicionado(a) com sucesso.`);
+  const typeLabel = { pessoa: 'Pessoa', empresa: 'Empresa', estado: 'Estado' }[addEntityType] || addEntityType;
+  setStatus(`✅ ${typeLabel} "${esc(nome)}" adicionado(a) com sucesso.`);
 }
 
 function closeAddModal() {

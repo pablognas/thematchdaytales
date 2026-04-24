@@ -145,7 +145,7 @@ Each tick performs the following steps **in order**:
 ## Known Limitations
 
 - **Internet required at startup** for sql.js to load from CDN. The WASM binary (`sql-wasm.wasm`, ~1 MB) is fetched from `cdnjs.cloudflare.com`. For fully offline use, download the file and update `locateFile` in `src/core/db.js`.
-- **localStorage size limit** (~5–10 MB depending on browser). For large worlds, use **Exportar DB** to back up the `.db` file regularly.
+- **localStorage size limit.** Browsers typically allow 5–10 MB of localStorage data. The database is stored as base64 (≈33% overhead), so the effective SQLite database size limit is roughly 3.5–7.5 MB. For large worlds, use **Exportar DB** to back up the `.db` file regularly.
 - **CSV parser** (`src/core/csv.js`) does **not** support fields containing commas or newlines. Keep all CSV values simple.
 - Scheduler state (scheduled conversions and injections) is persisted in `localStorage`. Clearing browser storage will lose pending schedules.
 - The engine does not yet model product purchases, inventories, or inter-state migration.
