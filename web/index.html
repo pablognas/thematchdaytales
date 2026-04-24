@@ -554,6 +554,7 @@
   <button class="tab-btn"        data-tab="empresas"      role="tab">🏢 Empresas</button>
   <button class="tab-btn"        data-tab="estados"       role="tab">🗺 Estados</button>
   <button class="tab-btn"        data-tab="jogadores"     role="tab">⚽ Jogadores</button>
+  <button class="tab-btn"        data-tab="elenco"        role="tab">🏟 Elenco</button>
   <button class="tab-btn"        data-tab="transferencias" role="tab">💸 Transferências</button>
   <button class="tab-btn"        data-tab="agendamento"   role="tab">📅 Agendamentos</button>
   <button class="tab-btn"        data-tab="mapa"          role="tab">🧭 Mapa</button>
@@ -598,9 +599,26 @@
   <!-- ── Jogadores ───────────────────────────────────────────────────────── -->
   <section id="tab-jogadores" class="tab-panel" role="tabpanel">
     <div class="import-bar">
-      <p style="color:var(--muted);font-size:0.85rem">Gerencie jogadores: edite posição, nota e valor de mercado diretamente, ou clique em <strong>⚽ Scouts</strong> para registrar os scouts de uma partida e calcular a nova nota e valor.</p>
+      <p style="color:var(--muted);font-size:0.85rem">Gerencie jogadores: edite posição, clube, nota e valor de mercado diretamente, ou clique em <strong>⚽ Scouts</strong> para registrar os scouts de uma partida e calcular a nova nota e valor.</p>
+    </div>
+    <div class="import-bar" style="margin-bottom:0.5rem">
+      <label for="jogadores-clube-filter" style="font-size:0.8rem;color:var(--muted);white-space:nowrap">Filtrar por clube:</label>
+      <select id="jogadores-clube-filter" style="min-width:180px">
+        <option value="">— Todos os clubes —</option>
+      </select>
     </div>
     <div id="table-jogadores"><div class="empty-state">Nenhum jogador carregado. Carregue pessoas com classe "jogador".</div></div>
+  </section>
+
+  <!-- ── Elenco ────────────────────────────────────────────────────────── -->
+  <section id="tab-elenco" class="tab-panel" role="tabpanel">
+    <div class="import-bar">
+      <label for="elenco-clube-select" style="font-size:0.8rem;color:var(--muted);white-space:nowrap">Clube:</label>
+      <select id="elenco-clube-select" style="min-width:200px">
+        <option value="">— Selecione um clube —</option>
+      </select>
+    </div>
+    <div id="table-elenco"><div class="empty-state">Selecione um clube para ver seu elenco.</div></div>
   </section>
 
   <!-- ── Transferências ───────────────────────────────────────────────────── -->
@@ -664,6 +682,52 @@
       </p>
 
       <div id="tr-log" style="font-family:var(--mono);font-size:0.75rem;white-space:pre-wrap;color:#86efac;background:#111827;border:1px solid var(--border);border-radius:8px;padding:1rem;max-height:40vh;overflow-y:auto;min-height:3rem">Nenhuma transferência realizada ainda.</div>
+    </div>
+
+    <!-- ── Transferência de Jogador ────────────────────────────────────── -->
+    <div class="schedule-section">
+      <h3>🔄 Transferência de Jogador (Ativo)</h3>
+
+      <div class="injection-form" style="grid-template-columns:1fr 1fr 1fr 1fr auto">
+        <!-- Tipo de transferência de jogador -->
+        <div>
+          <label for="jtr-type">Tipo</label>
+          <select id="jtr-type">
+            <option value="definitiva">🔒 Definitiva</option>
+            <option value="emprestimo">🔁 Empréstimo</option>
+          </select>
+        </div>
+
+        <!-- Clube Origem -->
+        <div>
+          <label for="jtr-src-clube">Clube Origem</label>
+          <select id="jtr-src-clube" style="width:100%"></select>
+        </div>
+
+        <!-- Jogador -->
+        <div>
+          <label for="jtr-jogador">Jogador</label>
+          <select id="jtr-jogador" style="width:100%"></select>
+        </div>
+
+        <!-- Clube Destino -->
+        <div>
+          <label for="jtr-dst-clube">Clube Destino</label>
+          <select id="jtr-dst-clube" style="width:100%"></select>
+        </div>
+
+        <div>
+          <label class="sr-only">Ação</label>
+          <button id="btn-execute-jtr" class="btn-green" style="height:100%">↔ Transferir Jogador</button>
+        </div>
+      </div>
+
+      <p style="font-size:0.78rem;color:var(--muted);margin-bottom:0.75rem">
+        <strong>Definitiva:</strong> altera o clube do jogador permanentemente.<br>
+        <strong>Empréstimo:</strong> altera o clube atual do jogador e registra o clube de origem (emprestador).
+      </p>
+
+      <div id="jtr-log" style="font-family:var(--mono);font-size:0.75rem;white-space:pre-wrap;color:#86efac;background:#111827;border:1px solid var(--border);border-radius:8px;padding:1rem;max-height:20vh;overflow-y:auto;min-height:3rem">Nenhuma transferência de jogador realizada ainda.</div>
     </div>
   </section>
 

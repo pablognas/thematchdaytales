@@ -48,9 +48,11 @@ export function rowsToPessoas(rows) {
         moral:      toBool(r.gastos_moral),
         reputacao:  toBool(r.gastos_reputacao),
       },
-      nota_scouting: toNum(r.nota_scouting, 0),
-      valor_mercado: toNum(r.valor_mercado, 0),
-      posicao: r.posicao || '',
+      nota_scouting:     toNum(r.nota_scouting, 0),
+      valor_mercado:     toNum(r.valor_mercado, 0),
+      posicao:           r.posicao           || '',
+      clube:             r.clube             || '',
+      clube_emprestador: r.clube_emprestador || '',
       // Default ativos: single entry matching patrimonio
       ativos: { patrimonio_geral: patrimonio },
     };
@@ -78,9 +80,11 @@ export function pessoasToRows(pessoas) {
     gastos_influencia: p.gastos_mensais_pagos.influencia ? 1 : 0,
     gastos_moral:      p.gastos_mensais_pagos.moral      ? 1 : 0,
     gastos_reputacao:  p.gastos_mensais_pagos.reputacao  ? 1 : 0,
-    nota_scouting: p.nota_scouting || 0,
-    valor_mercado: Math.round(p.valor_mercado || 0),
-    posicao: p.posicao || '',
+    nota_scouting:     p.nota_scouting || 0,
+    valor_mercado:     p.valor_mercado  || 0,
+    posicao:           p.posicao           || '',
+    clube:             p.clube             || '',
+    clube_emprestador: p.clube_emprestador || '',
   }));
 }
 

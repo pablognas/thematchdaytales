@@ -69,6 +69,9 @@ let tableSorts = {
   jogadores: { by: 'nome', dir: 1 },
 };
 
+// Jogadores club filter state
+let jogadoresClubeFilter = '';
+
 // Viewport: center + dimensions (columns = lon count, rows = lat count)
 let mapaVp = { latCenter: 0, lonCenter: 0, rows: 30, cols: 60 };
 
@@ -121,6 +124,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'agendamento') renderScheduleTab();
     if (btn.dataset.tab === 'mapa')        initMapaTab();
     if (btn.dataset.tab === 'jogadores')   renderJogadoresTable();
+    if (btn.dataset.tab === 'elenco')      renderElencoTab();
+    if (btn.dataset.tab === 'transferencias') populateJogadorTransferSelects();
   });
 });
 
@@ -268,6 +273,8 @@ function renderAll() {
   updateTickCounter();
   populateMapaEstadoSelects();
   populateTransferSelects();
+  populateJogadorTransferSelects();
+  renderElencoTab();
 }
 
 // ── Sorting helpers ────────────────────────────────────────────────────────
@@ -613,8 +620,10 @@ const FIELD_SETTERS = {
   descricao: (e, v) => { e.descricao = v; },
   // Pessoa jogador stats
   nota_scouting: (e, v) => { e.nota_scouting = v; },
-  valor_mercado:  (e, v) => { e.valor_mercado  = v; },
+  valor_mercado:  (e, v) => { e.valor_mercado  = Math.max(0, v); },
   posicao:        (e, v) => { e.posicao        = v; },
+  clube:             (e, v) => { e.clube             = v; },
+  clube_emprestador: (e, v) => { e.clube_emprestador = v; },
 };
 
 /** Apply a known field update to an entity. Ignores unknown paths. */
@@ -724,8 +733,40 @@ function renderJogadoresTable() {
     return;
   }
 
+  // Populate the club filter dropdown
+  const filterEl = document.getElementById('jogadores-clube-filter');
+  if (filterEl) {
+    const clubs = [...new Set(all.map(j => j.clube).filter(c => c))].sort((a, b) => {
+      const na = world.empresas.find(e => e.id === a)?.nome || a;
+      const nb = world.empresas.find(e => e.id === b)?.nome || b;
+      return na.localeCompare(nb, 'pt-BR');
+    });
+    filterEl.innerHTML = '<option value="">— Todos os clubes —</option>' +
+      clubs.map(c => {
+        const label = world.empresas.find(e => e.id === c)?.nome || c;
+        return `<option value="${esc(c)}">${esc(label)}</option>`;
+      }).join('');
+    // Re-apply saved filter state (reset if the filtered club no longer exists)
+    if (clubs.includes(jogadoresClubeFilter)) {
+      filterEl.value = jogadoresClubeFilter;
+    } else {
+      jogadoresClubeFilter = '';
+      filterEl.value = '';
+    }
+  }
+
+  // Filter by club if a filter is active
+  const filtered = jogadoresClubeFilter
+    ? all.filter(j => j.clube === jogadoresClubeFilter)
+    : all;
+
+  if (!filtered.length) {
+    container.innerHTML = '<div class="empty-state">Nenhum jogador encontrado para o clube selecionado.</div>';
+    return;
+  }
+
   const { by, dir } = tableSorts.jogadores;
-  const sorted = sortedEntities(all, by, dir);
+  const sorted = sortedEntities(filtered, by, dir);
   const idxMap = new Map(all.map(item => [item, world.pessoas.indexOf(item)]));
 
   let html = `<div class="table-wrap"><table>
@@ -734,6 +775,8 @@ function renderJogadoresTable() {
       ${sortHeader('Nome', 'nome', 'jogadores')}
       <th>Estado</th>
       <th>Posição</th>
+      <th>Clube</th>
+      <th>Empréstimo</th>
       ${sortHeader('Nota de Scouting', 'nota_scouting', 'jogadores')}
       ${sortHeader('Valor de Mercado', 'valor_mercado', 'jogadores')}
       <th>Scouts</th>
@@ -742,6 +785,12 @@ function renderJogadoresTable() {
 
   for (const jogador of sorted) {
     const i = idxMap.get(jogador);
+    const emprestador = jogador.clube_emprestador
+      ? (world.empresas.find(e => e.id === jogador.clube_emprestador)?.nome || jogador.clube_emprestador)
+      : '';
+    const clubeSelectOpts = world.empresas.map(e =>
+      `<option value="${esc(e.id)}" ${jogador.clube === e.id ? 'selected' : ''}>${esc(e.nome || e.id)}</option>`
+    ).join('');
     html += `<tr>
       <td class="id-cell">${esc(jogador.id)}</td>
       <td>${esc(jogador.nome)}</td>
@@ -750,15 +799,24 @@ function renderJogadoresTable() {
         <input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="posicao"
           value="${esc(jogador.posicao || '')}" style="width:110px" placeholder="ex: goleiro" />
       </td>
+      <td>
+        <select class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="clube" style="width:150px">
+          <option value="" ${!jogador.clube ? 'selected' : ''}>— sem clube —</option>
+          ${clubeSelectOpts}
+        </select>
+      </td>
+      <td class="id-cell">
+        ${emprestador ? `<span style="color:var(--yellow)" title="Emprestado por: ${esc(emprestador)}">🔁 ${esc(emprestador)}</span>` : '–'}
+      </td>
       <td class="num">
-        <input class="cell-input num" type="number" step="0.01"
+        <input class="cell-input num" type="number" step="0.01" min="0"
           data-entity="pessoa" data-idx="${i}" data-field="nota_scouting"
           value="${fmtDec(jogador.nota_scouting || 0, 2)}" style="width:90px" />
       </td>
       <td class="num">
-        <input class="cell-input num" type="number" min="0" step="100000"
+        <input class="cell-input num" type="number" min="0" step="0.01"
           data-entity="pessoa" data-idx="${i}" data-field="valor_mercado"
-          value="${Math.round(jogador.valor_mercado || 0)}" style="width:130px" />
+          value="${jogador.valor_mercado || 0}" style="width:130px" />
       </td>
       <td>
         <button class="btn-blue btn-sm btn-scouts" data-eid="${esc(jogador.id)}">⚽ Scouts</button>
@@ -868,6 +926,12 @@ document.getElementById('modal-scouts')?.addEventListener('click', e => {
   if (e.target === document.getElementById('modal-scouts')) closeScoutsModal();
 });
 
+// Jogadores clube filter
+document.getElementById('jogadores-clube-filter')?.addEventListener('change', e => {
+  jogadoresClubeFilter = e.target.value;
+  renderJogadoresTable();
+});
+
 // ── Transferências ────────────────────────────────────────────────────────────
 
 /**
@@ -921,6 +985,152 @@ document.getElementById('btn-execute-transfer')?.addEventListener('click', () =>
     setStatus(`⚠ ${result.msg}`);
   }
 });
+
+// ── Transferência de Jogador ──────────────────────────────────────────────────
+
+/**
+ * Populate selects for the player transfer form.
+ * Origem/destino are clube (empresa) selects; jogador select is filtered by origem clube.
+ */
+function populateJogadorTransferSelects() {
+  const srcEl  = document.getElementById('jtr-src-clube');
+  const dstEl  = document.getElementById('jtr-dst-clube');
+  const jogEl  = document.getElementById('jtr-jogador');
+  if (!srcEl || !dstEl || !jogEl) return;
+
+  const emptyOpt = '<option value="">— sem dados carregados —</option>';
+  const clubeOpts = world.empresas.length
+    ? world.empresas.map(e => `<option value="${esc(e.id)}">${esc(e.nome || e.id)}</option>`).join('')
+    : emptyOpt;
+
+  srcEl.innerHTML = `<option value="">— Selecione origem —</option>${clubeOpts}`;
+  dstEl.innerHTML = `<option value="">— Selecione destino —</option>${clubeOpts}`;
+
+  populateJtrJogadorSelect();
+}
+
+function populateJtrJogadorSelect() {
+  const srcId = document.getElementById('jtr-src-clube')?.value || '';
+  const jogEl = document.getElementById('jtr-jogador');
+  if (!jogEl) return;
+
+  // Players belonging to the selected origin clube
+  const jogadores = world.pessoas.filter(p => p.classe === 'jogador' && p.clube === srcId);
+  jogEl.innerHTML = jogadores.length
+    ? `<option value="">— Selecione jogador —</option>` +
+      jogadores.map(j => `<option value="${esc(j.id)}">${esc(j.nome || j.id)}</option>`).join('')
+    : `<option value="">— nenhum jogador neste clube —</option>`;
+}
+
+document.getElementById('jtr-src-clube')?.addEventListener('change', populateJtrJogadorSelect);
+
+document.getElementById('btn-execute-jtr')?.addEventListener('click', () => {
+  const srcClubeId = document.getElementById('jtr-src-clube').value;
+  const dstClubeId = document.getElementById('jtr-dst-clube').value;
+  const jogadorId  = document.getElementById('jtr-jogador').value;
+  const jtrType    = document.getElementById('jtr-type').value;
+
+  if (!srcClubeId || !dstClubeId || !jogadorId) {
+    setStatus('⚠ Selecione clube origem, destino e jogador.');
+    return;
+  }
+  if (srcClubeId === dstClubeId) {
+    setStatus('⚠ Clube origem e destino devem ser diferentes.');
+    return;
+  }
+
+  const jogador = world.pessoas.find(p => p.id === jogadorId);
+  if (!jogador) {
+    setStatus('⚠ Jogador não encontrado.');
+    return;
+  }
+
+  const srcClube = world.empresas.find(e => e.id === srcClubeId);
+  const dstClube = world.empresas.find(e => e.id === dstClubeId);
+  const srcNome  = srcClube?.nome || srcClubeId;
+  const dstNome  = dstClube?.nome || dstClubeId;
+
+  if (jtrType === 'definitiva') {
+    jogador.clube             = dstClubeId;
+    jogador.clube_emprestador = '';
+  } else {
+    // Empréstimo: record the original club as emprestador
+    const emprestador = jogador.clube_emprestador || jogador.clube;
+    jogador.clube_emprestador = emprestador || srcClubeId;
+    jogador.clube             = dstClubeId;
+  }
+
+  const logEl = document.getElementById('jtr-log');
+  const tipoLabel = jtrType === 'definitiva' ? 'Transferência definitiva' : 'Empréstimo';
+  const msg = `${tipoLabel}: ${jogador.nome} de ${srcNome} → ${dstNome}`;
+  if (logEl) {
+    const ts = new Date().toLocaleTimeString('pt-BR');
+    logEl.textContent = `[${ts}] ${msg}\n` + logEl.textContent;
+  }
+
+  renderAll();
+  setStatus(`✅ ${msg}.`);
+});
+
+// ── Elenco do Clube ───────────────────────────────────────────────────────────
+
+/**
+ * Render the club roster tab. Shows players belonging to the selected clube.
+ */
+function renderElencoTab() {
+  const selectEl    = document.getElementById('elenco-clube-select');
+  const container   = document.getElementById('table-elenco');
+  if (!selectEl || !container) return;
+
+  // Populate club dropdown
+  const curVal = selectEl.value;
+  selectEl.innerHTML = '<option value="">— Selecione um clube —</option>' +
+    world.empresas.map(e => `<option value="${esc(e.id)}">${esc(e.nome || e.id)}</option>`).join('');
+  if (curVal && world.empresas.some(e => e.id === curVal)) {
+    selectEl.value = curVal;
+  }
+
+  const clubeId = selectEl.value;
+  if (!clubeId) {
+    container.innerHTML = '<div class="empty-state">Selecione um clube para ver seu elenco.</div>';
+    return;
+  }
+
+  const jogadores = world.pessoas.filter(p => p.classe === 'jogador' && p.clube === clubeId);
+  const emprestados = world.pessoas.filter(p => p.classe === 'jogador' && p.clube_emprestador === clubeId);
+
+  if (!jogadores.length && !emprestados.length) {
+    container.innerHTML = '<div class="empty-state">Nenhum jogador encontrado neste clube.</div>';
+    return;
+  }
+
+  const buildRows = (list, isEmprestado) => list.map(j => {
+    const empresLabel = isEmprestado
+      ? `<td><span style="color:var(--yellow)">🔁 Emprestado a ${esc(world.empresas.find(e => e.id === j.clube)?.nome || j.clube)}</span></td>`
+      : `<td>–</td>`;
+    return `<tr>
+      <td>${esc(j.nome)}</td>
+      <td>${esc(j.posicao || '–')}</td>
+      <td class="num">${fmtDec(j.nota_scouting || 0, 2)}</td>
+      <td class="num">${fmtNum(j.valor_mercado || 0)}</td>
+      ${empresLabel}
+    </tr>`;
+  }).join('');
+
+  let html = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Nome</th><th>Posição</th><th>Nota Scouting</th><th>Valor de Mercado</th><th>Status</th>
+    </tr></thead>
+    <tbody>
+      ${buildRows(jogadores, false)}
+      ${buildRows(emprestados, true)}
+    </tbody>
+  </table></div>`;
+
+  container.innerHTML = html;
+}
+
+document.getElementById('elenco-clube-select')?.addEventListener('change', renderElencoTab);
 
 // ── Scheduling tab ────────────────────────────────────────────────────────────
 document.querySelectorAll('.entity-type-btn').forEach(btn => {
@@ -1483,6 +1693,11 @@ function saveNewEntity() {
         moral:      document.getElementById('nef-gasto-moral').checked,
         reputacao:  document.getElementById('nef-gasto-rep').checked,
       },
+      nota_scouting:     0,
+      valor_mercado:     0,
+      posicao:           '',
+      clube:             '',
+      clube_emprestador: '',
       ativos: { patrimonio_geral: patrimonio },
     });
     renderPessoasTable();
