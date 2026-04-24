@@ -125,7 +125,7 @@ function tickToDate(tick) {
 
 /** Convert month (1–12) and year (≥1850) to a tick number. */
 function dateToTick(month, year) {
-  return (year - TICK_EPOCH_YEAR) * 12 + Math.min(12, Math.max(1, month));
+  return (year - TICK_EPOCH_YEAR) * 12 + month;
 }
 
 /** Format a tick as "M/YYYY" string, or "—" if zero/unset. */
@@ -1400,6 +1400,11 @@ function esc(str) {
 
 // ── Archive / Reactivate Entity ───────────────────────────────────────────────
 
+/** Return a human-readable label for an entity type. */
+function entityTypeLabel(type) {
+  return type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
+}
+
 /**
  * Mark an entity as removed from the registry by setting tick_saida to the current tick.
  * The entity remains in the world data and can be reactivated.
@@ -1413,8 +1418,7 @@ function archiveEntity(type, id) {
   if (type === 'pessoa')       renderPessoasTable();
   else if (type === 'empresa') renderEmpresasTable();
   else                         renderEstadosTable();
-  const typeLabel = type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
-  setStatus(`📤 ${typeLabel} "${entity.nome || id}" arquivado(a) em ${tickLabel(entity.tick_saida)}.`);
+  setStatus(`📤 ${entityTypeLabel(type)} "${entity.nome || id}" arquivado(a) em ${tickLabel(entity.tick_saida)}.`);
 }
 
 /**
@@ -1429,8 +1433,7 @@ function reactivateEntity(type, id) {
   if (type === 'pessoa')       renderPessoasTable();
   else if (type === 'empresa') renderEmpresasTable();
   else                         renderEstadosTable();
-  const typeLabel = type === 'pessoa' ? 'Pessoa' : type === 'empresa' ? 'Empresa' : 'Estado';
-  setStatus(`🔄 ${typeLabel} "${entity.nome || id}" reativado(a).`);
+  setStatus(`🔄 ${entityTypeLabel(type)} "${entity.nome || id}" reativado(a).`);
 }
 
 // ── Population aggregation ────────────────────────────────────────────────────
