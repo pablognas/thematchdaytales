@@ -11,12 +11,12 @@ const KEY_TICK        = 'matchday_current_tick';
 
 /** @returns {number} */
 export function getCurrentTick() {
-  return parseInt(localStorage.getItem(KEY_TICK) ?? '0', 10);
+  return parseInt(localStorage.getItem(KEY_TICK) ?? '1', 10);
 }
 
 /** @param {number} tick */
 export function setCurrentTick(tick) {
-  localStorage.setItem(KEY_TICK, String(Math.max(0, tick)));
+  localStorage.setItem(KEY_TICK, String(Math.max(1, tick)));
 }
 
 /** Increment tick by 1 and return the new value. @returns {number} */

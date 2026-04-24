@@ -67,6 +67,9 @@
       white-space: nowrap;
     }
 
+    /* ── Archived entity rows ─────────────────────────────────────────────── */
+    tr.entity-archived { opacity: 0.5; background: rgba(248, 113, 113, 0.06); }
+
     /* ── Buttons ─────────────────────────────────────────────────────────── */
     button {
       padding: 0.45rem 1rem;
@@ -541,10 +544,14 @@
 <header>
   <h1>⚽ The Matchday Tales</h1>
   <div class="tick-bar">
-    <div class="tick-display">Tick <span id="tick-counter">0</span></div>
+    <div class="tick-display">Tick <span id="tick-counter">1/1850</span></div>
     <button id="btn-defaults" class="btn-purple">📂 Carregar Exemplos</button>
     <button id="btn-tick"     class="btn-green" >▶ Rodar Tick</button>
     <button id="btn-export"   class="btn-blue"  >⬇ Exportar CSVs</button>
+    <label style="font-size:0.8rem;color:var(--muted);display:flex;align-items:center;gap:0.4rem;cursor:pointer;user-select:none">
+      <input type="checkbox" id="toggle-mostrar-arquivados" />
+      Mostrar arquivados
+    </label>
   </div>
 </header>
 
@@ -739,8 +746,10 @@
       <h3>🔄 Conversões Agendadas</h3>
 
       <div class="tick-select-bar">
-        <label for="sched-tick">Tick alvo:</label>
-        <input type="number" id="sched-tick" min="0" value="1" style="width:80px" />
+        <label>Mês/Ano alvo:</label>
+        <input type="number" id="sched-tick-month" min="1" max="12" value="1" style="width:50px" aria-label="Mês alvo" />
+        <span style="color:var(--muted)">/</span>
+        <input type="number" id="sched-tick-year" min="1850" value="1850" style="width:70px" aria-label="Ano alvo" />
 
         <div class="entity-type-tabs">
           <button class="entity-type-btn active" data-etype="pessoa" >👥 Pessoas</button>
@@ -776,8 +785,12 @@
           <input type="number" id="inj-amount" min="0" step="1000" value="0" style="width:130px" />
         </div>
         <div>
-          <label for="inj-tick">Tick</label>
-          <input type="number" id="inj-tick" min="0" value="1" style="width:80px" />
+          <label>Mês/Ano</label>
+          <div style="display:flex;align-items:center;gap:0.25rem">
+            <input type="number" id="inj-tick-month" min="1" max="12" value="1" style="width:48px" aria-label="Mês do aporte" />
+            <span style="color:var(--muted)">/</span>
+            <input type="number" id="inj-tick-year" min="1850" value="1850" style="width:68px" aria-label="Ano do aporte" />
+          </div>
         </div>
         <div>
           <label class="sr-only">Ação</label>
