@@ -728,6 +728,11 @@ function renderJogadoresTable() {
   if (!container) return;
   const all = world.pessoas.filter(p => p.classe === 'jogador');
 
+  if (!all.length) {
+    container.innerHTML = '<div class="empty-state">Nenhum jogador carregado. Carregue pessoas com classe "jogador".</div>';
+    return;
+  }
+
   // Populate the club filter dropdown
   const filterEl = document.getElementById('jogadores-clube-filter');
   if (filterEl) {
@@ -736,16 +741,15 @@ function renderJogadoresTable() {
       const nb = world.empresas.find(e => e.id === b)?.nome || b;
       return na.localeCompare(nb, 'pt-BR');
     });
-    const curFilter = filterEl.value;
     filterEl.innerHTML = '<option value="">— Todos os clubes —</option>' +
       clubs.map(c => {
         const label = world.empresas.find(e => e.id === c)?.nome || c;
-        return `<option value="${esc(c)}" ${curFilter === c ? 'selected' : ''}>${esc(label)}</option>`;
+        return `<option value="${esc(c)}">${esc(label)}</option>`;
       }).join('');
-    // Re-apply saved filter state
-    if (jogadoresClubeFilter && clubs.includes(jogadoresClubeFilter)) {
+    // Re-apply saved filter state (reset if the filtered club no longer exists)
+    if (clubs.includes(jogadoresClubeFilter)) {
       filterEl.value = jogadoresClubeFilter;
-    } else if (!clubs.includes(jogadoresClubeFilter)) {
+    } else {
       jogadoresClubeFilter = '';
       filterEl.value = '';
     }
@@ -755,11 +759,6 @@ function renderJogadoresTable() {
   const filtered = jogadoresClubeFilter
     ? all.filter(j => j.clube === jogadoresClubeFilter)
     : all;
-
-  if (!all.length) {
-    container.innerHTML = '<div class="empty-state">Nenhum jogador carregado. Carregue pessoas com classe "jogador".</div>';
-    return;
-  }
 
   if (!filtered.length) {
     container.innerHTML = '<div class="empty-state">Nenhum jogador encontrado para o clube selecionado.</div>';
@@ -1098,7 +1097,7 @@ function renderElencoTab() {
   }
 
   const jogadores = world.pessoas.filter(p => p.classe === 'jogador' && p.clube === clubeId);
-  const emprestados = world.pessoas.filter(p => p.classe === 'jogador' && p.clube_emprestador === clubeId && p.clube !== clubeId);
+  const emprestados = world.pessoas.filter(p => p.classe === 'jogador' && p.clube_emprestador === clubeId);
 
   if (!jogadores.length && !emprestados.length) {
     container.innerHTML = '<div class="empty-state">Nenhum jogador encontrado neste clube.</div>';
