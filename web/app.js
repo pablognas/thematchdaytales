@@ -4,8 +4,8 @@
  * Architecture:
  *  - `world` object is the single source of truth (mutated in place by the engine).
  *  - HTML tables are rendered FROM the world object and re-rendered after each change.
- *  - CSV import → updates world → re-renders tables.
- *  - CSV export → serializes world → downloads files.
+ *  - Persistence: SQLite via sql.js, stored in IndexedDB (see src/core/db.js).
+ *  - CSV export still available as a backup/interop utility.
  *  - Scheduler state lives in localStorage (via scheduler.js).
  *
  * Tick execution order (see engine.js):
@@ -20,8 +20,12 @@ import {
   rowsToPessoas,  pessoasToRows,
   rowsToEmpresas, empresasToRows,
   rowsToEstados,  estadosToRows,
-  applyAtivos, worldAtivosToRows, reconcilePatrimonio,
+  worldAtivosToRows, reconcilePatrimonio,
 } from '../src/core/world.js';
+import {
+  getDb, loadWorldFromDb, saveWorldToDb,
+  scheduleAutoSave, exportDbFile, resetDb,
+} from '../src/core/db.js';
 import {
   tickMensal,
   applyScheduledConversions, applyScheduledInjections,
@@ -43,6 +47,7 @@ import {
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
 let config = null;
+let db     = null;   // sql.js Database singleton (set in initApp)
 
 // Which entity type is showing in the conversion matrix
 let scheduleEntityType = 'pessoa';
@@ -185,62 +190,16 @@ function readFile(file) {
   });
 }
 
-document.getElementById('file-pessoas').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  world.pessoas = rowsToPessoas(parseCsv(await readFile(file)));
-  renderPessoasTable();
-  setStatus(`Carregado: ${file.name}`);
-});
-
-document.getElementById('file-empresas').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  world.empresas = rowsToEmpresas(parseCsv(await readFile(file)));
-  renderEmpresasTable();
-  setStatus(`Carregado: ${file.name}`);
-});
-
-document.getElementById('file-estados').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  world.estados = rowsToEstados(parseCsv(await readFile(file)));
-  renderEstadosTable();
-  setStatus(`Carregado: ${file.name}`);
-});
-
-document.getElementById('file-ativos').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  applyAtivos(world, parseCsv(await readFile(file)));
-  renderAll();
-  setStatus(`Ativos aplicados: ${file.name}`);
-});
-
-// ── Load defaults ───────────────────────────────────────────────────────────
-document.getElementById('btn-defaults').addEventListener('click', async () => {
-  try {
-    setStatus('Carregando exemplos padrão…');
-    await loadConfig();
-    const [pCsv, eCsv, sCsv, aCsv, mCsv] = await Promise.all([
-      fetch('../data/world/pessoas.csv').then(r => r.text()),
-      fetch('../data/world/empresas.csv').then(r => r.text()),
-      fetch('../data/world/estados.csv').then(r => r.text()),
-      fetch('../data/world/ativos.csv').then(r => r.text()).catch(() => ''),
-      fetch('../data/world/mapa.csv').then(r => r.text()).catch(() => ''),
-    ]);
-    world.pessoas  = rowsToPessoas(parseCsv(pCsv));
-    world.empresas = rowsToEmpresas(parseCsv(eCsv));
-    world.estados  = rowsToEstados(parseCsv(sCsv));
-    if (aCsv) applyAtivos(world, parseCsv(aCsv));
-    mapaWorld = mCsv ? rowsToMapa(parseCsv(mCsv)) : {};
-    renderAll();
-    setStatus('✅ Exemplos padrão carregados.');
-  } catch (err) {
-    setStatus(`Erro ao carregar exemplos: ${err.message}`);
-    console.error(err);
-  }
-});
+// ── SQLite persistence helper ───────────────────────────────────────────────
+/**
+ * Write current world to SQLite and schedule a debounced IndexedDB persist.
+ * Call this after any mutation to world.pessoas / empresas / estados.
+ */
+function triggerSave() {
+  if (!db) return;
+  saveWorldToDb(db, world);
+  scheduleAutoSave(db);
+}
 
 // ── Tick mensal ─────────────────────────────────────────────────────────────
 document.getElementById('btn-tick').addEventListener('click', async () => {
@@ -272,6 +231,7 @@ document.getElementById('btn-tick').addEventListener('click', async () => {
 
     document.getElementById('log').textContent = log.join('\n');
     renderAll();
+    triggerSave();
     setStatus(`✅ ${tickLabel(tick)} concluído → agora em ${tickLabel(newTick)}`);
   } catch (err) {
     setStatus(`Erro no tick: ${err.message}`);
@@ -307,7 +267,26 @@ document.getElementById('btn-export').addEventListener('click', () => {
   const ativosRows = worldAtivosToRows(world);
   if (ativosRows.length) downloadText('ativos.csv', unparseCsv(ativosRows));
 
-  setStatus('⬇ CSVs exportados.');
+  setStatus('⬇ CSVs exportados (backup interop).');
+});
+
+// ── Export SQLite backup ────────────────────────────────────────────────────
+document.getElementById('btn-export-db')?.addEventListener('click', () => {
+  if (!db) { setStatus('⚠ Banco de dados não inicializado.'); return; }
+  exportDbFile(db);
+  setStatus('💾 Backup SQLite exportado.');
+});
+
+// ── Reset database ──────────────────────────────────────────────────────────
+document.getElementById('btn-reset-db')?.addEventListener('click', async () => {
+  if (!window.confirm('Resetar banco de dados?\nTodos os dados serão apagados permanentemente. A página será recarregada.')) return;
+  setStatus('Apagando banco de dados…');
+  try {
+    await resetDb();
+  } catch (err) {
+    setStatus(`Erro ao resetar banco: ${err.message}`);
+    console.error(err);
+  }
 });
 
 // ── Render all tables ───────────────────────────────────────────────────────
@@ -389,7 +368,7 @@ function renderPessoasTable() {
   const container = document.getElementById('table-pessoas');
   const p = world.pessoas;
   if (!p.length) {
-    container.innerHTML = '<div class="empty-state">Nenhuma pessoa carregada. Use "Carregar Exemplos" ou importe um CSV.</div>';
+    container.innerHTML = '<div class="empty-state">Nenhuma pessoa cadastrada. Use "+ Adicionar Pessoa" para criar.</div>';
     return;
   }
 
@@ -618,6 +597,7 @@ function bindTableInputs(container) {
       const obj = getEntityArray(entity)[parseInt(idx)];
       if (!obj) return;
       setEntityField(obj, field, input.type === 'number' ? parseFloat(input.value) : input.value);
+      triggerSave();
     });
   });
 
@@ -633,6 +613,7 @@ function bindTableInputs(container) {
         return;
       }
       setEntityField(obj, field, sel.value);
+      triggerSave();
     });
   });
 
@@ -643,6 +624,7 @@ function bindTableInputs(container) {
       const obj = getEntityArray(entity)[parseInt(idx)];
       if (!obj) return;
       setEntityField(obj, field, cb.checked);
+      triggerSave();
     });
   });
 
@@ -815,6 +797,7 @@ document.getElementById('btn-modal-save').addEventListener('click', () => {
     if (modalEntityType === 'pessoa')  renderPessoasTable();
     if (modalEntityType === 'empresa') renderEmpresasTable();
     if (modalEntityType === 'estado')  renderEstadosTable();
+    triggerSave();
   }
   closeAtivosModal();
   setStatus('Ativos salvos.');
@@ -1022,6 +1005,7 @@ function applyScouts() {
 
   closeScoutsModal();
   renderJogadoresTable();
+  triggerSave();
   setStatus(`✅ Scouts aplicados para ${pessoa.nome}: nota ${fmtDec(newAvg, 2)}, mercado ${fmtNum(newMktVal)}.`);
 }
 
@@ -1087,6 +1071,7 @@ document.getElementById('btn-execute-transfer')?.addEventListener('click', () =>
   const logEl = document.getElementById('tr-log');
   if (result.ok) {
     renderAll();
+    triggerSave();
     if (logEl) {
       const ts = new Date().toLocaleTimeString('pt-BR');
       logEl.textContent = `[${ts}] ${result.msg}\n` + logEl.textContent;
@@ -1180,6 +1165,7 @@ document.getElementById('btn-execute-jtr')?.addEventListener('click', () => {
   }
 
   renderAll();
+  triggerSave();
   setStatus(`✅ ${msg}.`);
 });
 
@@ -1424,6 +1410,7 @@ function archiveEntity(type, id) {
   if (type === 'pessoa')       renderPessoasTable();
   else if (type === 'empresa') renderEmpresasTable();
   else                         renderEstadosTable();
+  triggerSave();
   setStatus(`📤 ${entityTypeLabel(type)} "${entity.nome || id}" arquivado(a) em ${tickLabel(entity.tick_saida)}.`);
 }
 
@@ -1439,6 +1426,7 @@ function reactivateEntity(type, id) {
   if (type === 'pessoa')       renderPessoasTable();
   else if (type === 'empresa') renderEmpresasTable();
   else                         renderEstadosTable();
+  triggerSave();
   setStatus(`🔄 ${entityTypeLabel(type)} "${entity.nome || id}" reativado(a).`);
 }
 
@@ -1469,6 +1457,7 @@ function updatePopulacaoPai(parentId) {
   const total = sumDirectChildrenPopulation(parentId, world.estados);
   parent.atributos.populacao = total;
   renderEstadosTable();
+  triggerSave();
   setStatus(`✅ População de "${parent.nome || parent.id}" atualizada: ${fmtNum(total)}`);
 }
 
@@ -1533,7 +1522,7 @@ function deleteEntity(type, id) {
   removeAllConversionsForEntity(type, id);
   removeAllInjectionsForEntity(type, id);
   renderInjectionsList();
-
+  triggerSave();
   setStatus(`🗑 ${label} "${id}" excluído(a).`);
 }
 
@@ -1960,6 +1949,7 @@ function saveNewEntity() {
   }
 
   closeAddEntityModal();
+  triggerSave();
   setStatus(`✅ ${entityTypeLabel(type)} "${id}" adicionado(a) em ${tickLabel(getCurrentTick())}.`);
 }
 
@@ -2373,7 +2363,26 @@ document.getElementById('mapa-edit-clear').addEventListener('click', () => {
 });
 
 // ── Initialise ────────────────────────────────────────────────────────────────
-updateTickCounter();
-populateInjectionEntitySelect();
-renderInjectionsList();
-populateTransferSelects();
+async function initApp() {
+  updateTickCounter();
+  populateInjectionEntitySelect();
+  renderInjectionsList();
+  populateTransferSelects();
+
+  setStatus('Inicializando banco de dados…');
+  try {
+    db    = await getDb();
+    world = loadWorldFromDb(db);
+    renderAll();
+    setStatus(
+      world.pessoas.length || world.empresas.length || world.estados.length
+        ? '✅ Dados carregados do banco.'
+        : '💡 Banco de dados vazio. Adicione estados, pessoas e empresas.'
+    );
+  } catch (err) {
+    setStatus(`Erro ao inicializar banco: ${err.message}`);
+    console.error('[initApp]', err);
+  }
+}
+
+initApp();

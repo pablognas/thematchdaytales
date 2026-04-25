@@ -545,9 +545,10 @@
   <h1>⚽ The Matchday Tales</h1>
   <div class="tick-bar">
     <div class="tick-display">Tick <span id="tick-counter">1/1850</span></div>
-    <button id="btn-defaults" class="btn-purple">📂 Carregar Exemplos</button>
-    <button id="btn-tick"     class="btn-green" >▶ Rodar Tick</button>
-    <button id="btn-export"   class="btn-blue"  >⬇ Exportar CSVs</button>
+    <button id="btn-tick"      class="btn-green" >▶ Rodar Tick</button>
+    <button id="btn-export"    class="btn-blue"  >⬇ Exportar CSV</button>
+    <button id="btn-export-db" class="btn-blue"  >💾 Backup SQLite</button>
+    <button id="btn-reset-db"  class="btn-red"   title="Apaga todos os dados e recarrega (dev)">🗑 Resetar BD</button>
     <label style="font-size:0.8rem;color:var(--muted);display:flex;align-items:center;gap:0.4rem;cursor:pointer;user-select:none">
       <input type="checkbox" id="toggle-mostrar-arquivados" />
       Mostrar arquivados
@@ -574,33 +575,25 @@
   <!-- ── Pessoas ──────────────────────────────────────────────────────── -->
   <section id="tab-pessoas" class="tab-panel active" role="tabpanel">
     <div class="import-bar">
-      <label for="file-pessoas">Importar pessoas.csv</label>
-      <input type="file" id="file-pessoas" accept=".csv" />
-      <label for="file-ativos-pessoas" style="margin-left:0.5rem">Importar ativos.csv</label>
-      <input type="file" id="file-ativos"  accept=".csv" />
       <button id="btn-add-pessoa" class="btn-green btn-sm" style="margin-left:auto">+ Adicionar Pessoa</button>
     </div>
-    <div id="table-pessoas"><div class="empty-state">Nenhuma pessoa carregada. Use "Carregar Exemplos" ou importe um CSV.</div></div>
+    <div id="table-pessoas"><div class="empty-state">Nenhuma pessoa cadastrada. Use "+ Adicionar Pessoa" para criar.</div></div>
   </section>
 
   <!-- ── Empresas ─────────────────────────────────────────────────────── -->
   <section id="tab-empresas" class="tab-panel" role="tabpanel">
     <div class="import-bar">
-      <label for="file-empresas">Importar empresas.csv</label>
-      <input type="file" id="file-empresas" accept=".csv" />
       <button id="btn-add-empresa" class="btn-green btn-sm" style="margin-left:auto">+ Adicionar Empresa</button>
     </div>
-    <div id="table-empresas"><div class="empty-state">Nenhuma empresa carregada.</div></div>
+    <div id="table-empresas"><div class="empty-state">Nenhuma empresa cadastrada. Use "+ Adicionar Empresa" para criar.</div></div>
   </section>
 
   <!-- ── Estados ──────────────────────────────────────────────────────── -->
   <section id="tab-estados" class="tab-panel" role="tabpanel">
     <div class="import-bar">
-      <label for="file-estados">Importar estados.csv</label>
-      <input type="file" id="file-estados" accept=".csv" />
       <button id="btn-add-estado" class="btn-green btn-sm" style="margin-left:auto">+ Adicionar Estado</button>
     </div>
-    <div id="table-estados"><div class="empty-state">Nenhum estado carregado.</div></div>
+    <div id="table-estados"><div class="empty-state">Nenhum estado cadastrado. Use "+ Adicionar Estado" para criar.</div></div>
   </section>
 
   <!-- ── Jogadores ───────────────────────────────────────────────────────── -->
@@ -992,6 +985,7 @@
   <option value="territorio">
 </datalist>
 
+<script src="https://cdn.jsdelivr.net/npm/sql.js@1.12.0/dist/sql-wasm.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
