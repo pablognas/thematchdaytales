@@ -68,9 +68,10 @@ async function getSqlJs(injected) {
 export function createSchema(db) {
   db.run(`
     CREATE TABLE IF NOT EXISTS schema_version (
+      id      INTEGER PRIMARY KEY CHECK (id = 1),
       version INTEGER NOT NULL
     );
-    INSERT INTO schema_version (version) VALUES (${SCHEMA_VERSION});
+    INSERT OR REPLACE INTO schema_version (id, version) VALUES (1, ${SCHEMA_VERSION});
 
     CREATE TABLE IF NOT EXISTS pessoas (
       id                  TEXT PRIMARY KEY,
@@ -173,11 +174,11 @@ function runMigrations(db) {
     createSchema(db);
     return;
   }
-  const rows    = db.exec('SELECT version FROM schema_version LIMIT 1');
+  const rows    = db.exec('SELECT version FROM schema_version WHERE id = 1');
   const current = rows[0]?.values[0]?.[0] ?? 0;
   if (current < SCHEMA_VERSION) {
     // Placeholder for future migrations.
-    db.run('UPDATE schema_version SET version = ?', [SCHEMA_VERSION]);
+    db.run('UPDATE schema_version SET version = ? WHERE id = 1', [SCHEMA_VERSION]);
   }
 }
 
@@ -435,7 +436,9 @@ export async function initDb(options = {}) {
   const seeds = options.csvSeeds !== undefined
     ? options.csvSeeds
     : await fetchCsvSeeds(options.dataBase);
-  if (seeds) seedDbFromCsvText(db, seeds);
+  if (seeds && typeof seeds === 'object' && Object.keys(seeds).length > 0) {
+    seedDbFromCsvText(db, seeds);
+  }
 
   // Persist initial state
   if (!options.skipIdb) {

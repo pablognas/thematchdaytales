@@ -108,10 +108,21 @@ describe('DB schema', () => {
     const db = new SQL.Database();
     createSchema(db);
 
-    const result = db.exec('SELECT version FROM schema_version');
+    const result = db.exec('SELECT version FROM schema_version WHERE id = 1');
     assert.ok(result.length > 0);
     const version = result[0].values[0][0];
     assert.equal(version, SCHEMA_VERSION);
+  });
+
+  test('schema_version table contains exactly one row', () => {
+    const db = new SQL.Database();
+    createSchema(db);
+    // Calling createSchema twice should not create a duplicate row
+    createSchema(db);
+
+    const result = db.exec('SELECT COUNT(*) FROM schema_version');
+    const count = result[0].values[0][0];
+    assert.equal(count, 1);
   });
 });
 
