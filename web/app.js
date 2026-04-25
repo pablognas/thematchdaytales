@@ -39,10 +39,21 @@ import {
   SCOUTS_ATAQUE, SCOUTS_DEFESA,
   calcMatchScore, calcNewAverage, calcNewMarketValue,
 } from '../src/core/scouts.js';
+import {
+  initDb, loadWorldFromDb, saveWorldToDb,
+  seedDbFromCsvText, resetDbFromCsvSeeds,
+  exportDbFile as exportSqliteFile,
+} from '../src/core/db.js';
+import { saveDbBytesToIdb } from '../src/core/idb.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
 let config = null;
+
+// SQLite database instance (sql.js Database object)
+let appDb = null;
+// Debounce timer ID for auto-save to IndexedDB
+let autoSaveTimer = null;
 
 // Which entity type is showing in the conversion matrix
 let scheduleEntityType = 'pessoa';
@@ -98,6 +109,58 @@ async function loadConfig() {
   ]);
   config = { classes, atributos, conversoes, fluxos, produtos };
   return config;
+}
+
+// ── SQLite auto-save ───────────────────────────────────────────────────────
+
+/**
+ * Schedule a debounced write of the current world state to SQLite, then
+ * persist the updated DB bytes to IndexedDB.  The 500 ms delay coalesces
+ * rapid sequential edits (e.g. bulk cell changes) into a single write.
+ */
+function scheduleAutoSave() {
+  if (!appDb) return;
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    try {
+      saveWorldToDb(appDb, world, mapaWorld);
+      saveDbBytesToIdb(appDb.export()).catch(err =>
+        console.warn('matchday: IDB auto-save failed:', err),
+      );
+    } catch (err) {
+      console.warn('matchday: auto-save failed:', err);
+    }
+  }, 500);
+}
+
+// ── App initialisation ─────────────────────────────────────────────────────
+
+/**
+ * Bootstrap the app:
+ * 1. Load game config (classes, conversions, …).
+ * 2. Initialise the SQLite DB (restore from IndexedDB or seed from CSVs).
+ * 3. Load world data from the DB and render.
+ */
+async function initApp() {
+  setStatus('🔄 Carregando banco de dados…');
+  try {
+    await loadConfig();
+    appDb = await initDb();
+    const { world: w, mapaWorld: m } = loadWorldFromDb(appDb);
+    if (w.pessoas.length || w.empresas.length || w.estados.length) {
+      world.pessoas  = w.pessoas;
+      world.empresas = w.empresas;
+      world.estados  = w.estados;
+      mapaWorld = m;
+      renderAll();
+      setStatus('✅ Dados carregados do banco de dados.');
+    } else {
+      setStatus('📂 Banco vazio. Use "Carregar Exemplos" para iniciar ou importe CSVs.');
+    }
+  } catch (err) {
+    setStatus(`⚠ Erro ao inicializar banco: ${err.message}`);
+    console.error('matchday initApp error:', err);
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -191,6 +254,8 @@ document.getElementById('file-pessoas').addEventListener('change', async e => {
   world.pessoas = rowsToPessoas(parseCsv(await readFile(file)));
   renderPessoasTable();
   setStatus(`Carregado: ${file.name}`);
+  e.target.value = '';
+  scheduleAutoSave();
 });
 
 document.getElementById('file-empresas').addEventListener('change', async e => {
@@ -199,6 +264,8 @@ document.getElementById('file-empresas').addEventListener('change', async e => {
   world.empresas = rowsToEmpresas(parseCsv(await readFile(file)));
   renderEmpresasTable();
   setStatus(`Carregado: ${file.name}`);
+  e.target.value = '';
+  scheduleAutoSave();
 });
 
 document.getElementById('file-estados').addEventListener('change', async e => {
@@ -207,6 +274,8 @@ document.getElementById('file-estados').addEventListener('change', async e => {
   world.estados = rowsToEstados(parseCsv(await readFile(file)));
   renderEstadosTable();
   setStatus(`Carregado: ${file.name}`);
+  e.target.value = '';
+  scheduleAutoSave();
 });
 
 document.getElementById('file-ativos').addEventListener('change', async e => {
@@ -215,6 +284,8 @@ document.getElementById('file-ativos').addEventListener('change', async e => {
   applyAtivos(world, parseCsv(await readFile(file)));
   renderAll();
   setStatus(`Ativos aplicados: ${file.name}`);
+  e.target.value = '';
+  scheduleAutoSave();
 });
 
 // ── Load defaults ───────────────────────────────────────────────────────────
@@ -222,20 +293,31 @@ document.getElementById('btn-defaults').addEventListener('click', async () => {
   try {
     setStatus('Carregando exemplos padrão…');
     await loadConfig();
-    const [pCsv, eCsv, sCsv, aCsv, mCsv] = await Promise.all([
-      fetch('../data/world/pessoas.csv').then(r => r.text()),
-      fetch('../data/world/empresas.csv').then(r => r.text()),
-      fetch('../data/world/estados.csv').then(r => r.text()),
-      fetch('../data/world/ativos.csv').then(r => r.text()).catch(() => ''),
-      fetch('../data/world/mapa.csv').then(r => r.text()).catch(() => ''),
-    ]);
-    world.pessoas  = rowsToPessoas(parseCsv(pCsv));
-    world.empresas = rowsToEmpresas(parseCsv(eCsv));
-    world.estados  = rowsToEstados(parseCsv(sCsv));
-    if (aCsv) applyAtivos(world, parseCsv(aCsv));
-    mapaWorld = mCsv ? rowsToMapa(parseCsv(mCsv)) : {};
+    const csvSeeds = {
+      pessoas:  await fetch('../data/world/pessoas.csv').then(r => r.text()),
+      empresas: await fetch('../data/world/empresas.csv').then(r => r.text()),
+      estados:  await fetch('../data/world/estados.csv').then(r => r.text()),
+      ativos:   await fetch('../data/world/ativos.csv').then(r => r.text()).catch(() => ''),
+      mapa:     await fetch('../data/world/mapa.csv').then(r => r.text()).catch(() => ''),
+    };
+    if (appDb) {
+      // Seed SQLite DB, then reload world from it
+      await resetDbFromCsvSeeds(appDb, { csvSeeds });
+      const { world: w, mapaWorld: m } = loadWorldFromDb(appDb);
+      world.pessoas  = w.pessoas;
+      world.empresas = w.empresas;
+      world.estados  = w.estados;
+      mapaWorld = m;
+    } else {
+      // DB not ready yet — load into memory and schedule save once DB is ready
+      world.pessoas  = rowsToPessoas(parseCsv(csvSeeds.pessoas));
+      world.empresas = rowsToEmpresas(parseCsv(csvSeeds.empresas));
+      world.estados  = rowsToEstados(parseCsv(csvSeeds.estados));
+      if (csvSeeds.ativos) applyAtivos(world, parseCsv(csvSeeds.ativos));
+      mapaWorld = csvSeeds.mapa ? rowsToMapa(parseCsv(csvSeeds.mapa)) : {};
+    }
     renderAll();
-    setStatus('✅ Exemplos padrão carregados.');
+    setStatus('✅ Exemplos padrão carregados e salvos no banco de dados.');
   } catch (err) {
     setStatus(`Erro ao carregar exemplos: ${err.message}`);
     console.error(err);
@@ -272,6 +354,7 @@ document.getElementById('btn-tick').addEventListener('click', async () => {
 
     document.getElementById('log').textContent = log.join('\n');
     renderAll();
+    scheduleAutoSave();
     setStatus(`✅ ${tickLabel(tick)} concluído → agora em ${tickLabel(newTick)}`);
   } catch (err) {
     setStatus(`Erro no tick: ${err.message}`);
@@ -308,6 +391,41 @@ document.getElementById('btn-export').addEventListener('click', () => {
   if (ativosRows.length) downloadText('ativos.csv', unparseCsv(ativosRows));
 
   setStatus('⬇ CSVs exportados.');
+});
+
+// ── DB Export / Reset ────────────────────────────────────────────────────────
+
+document.getElementById('btn-db-export').addEventListener('click', () => {
+  if (!appDb) {
+    setStatus('⚠ Banco de dados não inicializado.');
+    return;
+  }
+  exportSqliteFile(appDb);
+  setStatus('⬇ Banco de dados SQLite exportado (matchday.db).');
+});
+
+document.getElementById('btn-db-reset').addEventListener('click', async () => {
+  if (!window.confirm(
+    'Resetar o banco de dados com os dados padrão dos CSVs?\nTodas as alterações serão perdidas.'
+  )) return;
+  if (!appDb) {
+    setStatus('⚠ Banco de dados não inicializado.');
+    return;
+  }
+  try {
+    setStatus('🔄 Resetando banco de dados…');
+    await resetDbFromCsvSeeds(appDb);
+    const { world: w, mapaWorld: m } = loadWorldFromDb(appDb);
+    world.pessoas  = w.pessoas;
+    world.empresas = w.empresas;
+    world.estados  = w.estados;
+    mapaWorld = m;
+    renderAll();
+    setStatus('✅ Banco de dados resetado com dados padrão.');
+  } catch (err) {
+    setStatus(`⚠ Erro ao resetar banco: ${err.message}`);
+    console.error(err);
+  }
 });
 
 // ── Render all tables ───────────────────────────────────────────────────────
@@ -740,7 +858,10 @@ const FIELD_SETTERS = {
 /** Apply a known field update to an entity. Ignores unknown paths. */
 function setEntityField(entity, field, value) {
   const setter = FIELD_SETTERS[field];
-  if (setter) setter(entity, value);
+  if (setter) {
+    setter(entity, value);
+    scheduleAutoSave();
+  }
 }
 
 // ── Ativos Modal ─────────────────────────────────────────────────────────────
@@ -817,6 +938,7 @@ document.getElementById('btn-modal-save').addEventListener('click', () => {
     if (modalEntityType === 'estado')  renderEstadosTable();
   }
   closeAtivosModal();
+  scheduleAutoSave();
   setStatus('Ativos salvos.');
 });
 
@@ -1022,6 +1144,7 @@ function applyScouts() {
 
   closeScoutsModal();
   renderJogadoresTable();
+  scheduleAutoSave();
   setStatus(`✅ Scouts aplicados para ${pessoa.nome}: nota ${fmtDec(newAvg, 2)}, mercado ${fmtNum(newMktVal)}.`);
 }
 
@@ -1087,6 +1210,7 @@ document.getElementById('btn-execute-transfer')?.addEventListener('click', () =>
   const logEl = document.getElementById('tr-log');
   if (result.ok) {
     renderAll();
+    scheduleAutoSave();
     if (logEl) {
       const ts = new Date().toLocaleTimeString('pt-BR');
       logEl.textContent = `[${ts}] ${result.msg}\n` + logEl.textContent;
@@ -1180,6 +1304,7 @@ document.getElementById('btn-execute-jtr')?.addEventListener('click', () => {
   }
 
   renderAll();
+  scheduleAutoSave();
   setStatus(`✅ ${msg}.`);
 });
 
@@ -1424,6 +1549,7 @@ function archiveEntity(type, id) {
   if (type === 'pessoa')       renderPessoasTable();
   else if (type === 'empresa') renderEmpresasTable();
   else                         renderEstadosTable();
+  scheduleAutoSave();
   setStatus(`📤 ${entityTypeLabel(type)} "${entity.nome || id}" arquivado(a) em ${tickLabel(entity.tick_saida)}.`);
 }
 
@@ -1439,6 +1565,7 @@ function reactivateEntity(type, id) {
   if (type === 'pessoa')       renderPessoasTable();
   else if (type === 'empresa') renderEmpresasTable();
   else                         renderEstadosTable();
+  scheduleAutoSave();
   setStatus(`🔄 ${entityTypeLabel(type)} "${entity.nome || id}" reativado(a).`);
 }
 
@@ -1469,6 +1596,7 @@ function updatePopulacaoPai(parentId) {
   const total = sumDirectChildrenPopulation(parentId, world.estados);
   parent.atributos.populacao = total;
   renderEstadosTable();
+  scheduleAutoSave();
   setStatus(`✅ População de "${parent.nome || parent.id}" atualizada: ${fmtNum(total)}`);
 }
 
@@ -1533,7 +1661,7 @@ function deleteEntity(type, id) {
   removeAllConversionsForEntity(type, id);
   removeAllInjectionsForEntity(type, id);
   renderInjectionsList();
-
+  scheduleAutoSave();
   setStatus(`🗑 ${label} "${id}" excluído(a).`);
 }
 
@@ -1960,6 +2088,7 @@ function saveNewEntity() {
   }
 
   closeAddEntityModal();
+  scheduleAutoSave();
   setStatus(`✅ ${entityTypeLabel(type)} "${id}" adicionado(a) em ${tickLabel(getCurrentTick())}.`);
 }
 
@@ -2143,6 +2272,7 @@ function applyMapaBrush(lat, lon) {
     }
   }
   updateCellElement(lat, lon);
+  scheduleAutoSave();
 }
 
 /**
@@ -2265,6 +2395,7 @@ document.getElementById('file-mapa').addEventListener('change', async e => {
     mapaWorld = rowsToMapa(rows);
     const imported = rows.length - ignored;
     renderMapaGrid();
+    scheduleAutoSave();
     setStatus(`Mapa carregado: ${file.name} — ${imported} células importadas${ignored ? `, ${ignored} ignoradas` : ''}.`);
   } catch (err) {
     setStatus(`Erro ao importar mapa: ${err.message}`);
@@ -2357,6 +2488,7 @@ document.getElementById('mapa-edit-save').addEventListener('click', () => {
     clima:     document.getElementById('mapa-edit-clima').value,
   });
   updateCellElement(lat, lon);
+  scheduleAutoSave();
   setStatus(`Célula (${lat}, ${lon}) atualizada.`);
 });
 
@@ -2369,6 +2501,7 @@ document.getElementById('mapa-edit-clear').addEventListener('click', () => {
   document.getElementById('mapa-edit-estado').value  = '';
   document.getElementById('mapa-edit-bioma').value   = '';
   document.getElementById('mapa-edit-clima').value   = '';
+  scheduleAutoSave();
   setStatus(`Célula (${lat}, ${lon}) limpa.`);
 });
 
@@ -2377,3 +2510,4 @@ updateTickCounter();
 populateInjectionEntitySelect();
 renderInjectionsList();
 populateTransferSelects();
+initApp();

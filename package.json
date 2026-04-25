@@ -1,0 +1,10 @@
+{
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/idb.test.js tests/db.test.js tests/db-import.test.js"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.0.0",
+    "sql.js": "^1.12.0"
+  }
+}

@@ -545,9 +545,11 @@
   <h1>⚽ The Matchday Tales</h1>
   <div class="tick-bar">
     <div class="tick-display">Tick <span id="tick-counter">1/1850</span></div>
-    <button id="btn-defaults" class="btn-purple">📂 Carregar Exemplos</button>
-    <button id="btn-tick"     class="btn-green" >▶ Rodar Tick</button>
-    <button id="btn-export"   class="btn-blue"  >⬇ Exportar CSVs</button>
+    <button id="btn-defaults"  class="btn-purple">📂 Carregar Exemplos</button>
+    <button id="btn-tick"      class="btn-green" >▶ Rodar Tick</button>
+    <button id="btn-export"    class="btn-blue"  >⬇ Exportar CSVs</button>
+    <button id="btn-db-export" class="btn-blue"  title="Baixar arquivo .db do banco de dados SQLite">💾 Exportar DB</button>
+    <button id="btn-db-reset"  class="btn-ghost" title="Reimportar dados padrão dos arquivos CSV (apaga alterações)">🔄 Reset DB</button>
     <label style="font-size:0.8rem;color:var(--muted);display:flex;align-items:center;gap:0.4rem;cursor:pointer;user-select:none">
       <input type="checkbox" id="toggle-mostrar-arquivados" />
       Mostrar arquivados
@@ -992,6 +994,10 @@
   <option value="territorio">
 </datalist>
 
+<script
+  src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js"
+  integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb"
+  crossorigin="anonymous"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
