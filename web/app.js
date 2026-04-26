@@ -43,7 +43,7 @@ import {
   SCOUTS_ATAQUE, SCOUTS_DEFESA,
   calcMatchScore, calcNewAverage, calcNewMarketValue,
 } from '../src/core/scouts.js';
-import { simulateEconomy } from '../src/core/economy.js';
+import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META } from '../src/core/economy.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
@@ -482,6 +482,7 @@ function renderEmpresasTable() {
     <thead><tr>
       <th>ID</th>
       ${sortHeader('Nome', 'nome', 'empresas')}
+      <th>Segmento</th>
       <th>Dono</th><th>Estado</th>
       ${sortHeader('Patrimônio', 'patrimonio', 'empresas')}
       <th>Funcionários</th><th>Renda</th><th>Produção</th>
@@ -497,6 +498,14 @@ function renderEmpresasTable() {
     html += `<tr${isArchived ? ' class="entity-archived"' : ''}>
       <td class="id-cell">${esc(emp.id)}</td>
       <td><input class="cell-input" data-entity="empresa" data-idx="${i}" data-field="nome" value="${esc(emp.nome)}" /></td>
+      <td>
+        <select class="cell-input" data-entity="empresa" data-idx="${i}" data-field="segmento" style="min-width:130px">
+          <option value="POP_NAO_DURAVEL"${emp.segmento === 'POP_NAO_DURAVEL' ? ' selected' : ''}>🟢 Pop. N-D</option>
+          <option value="POP_DURAVEL"${emp.segmento === 'POP_DURAVEL' ? ' selected' : ''}>🔵 Pop. Dur.</option>
+          <option value="B2B"${emp.segmento === 'B2B' ? ' selected' : ''}>🟡 B2B</option>
+          <option value="ESTADO"${emp.segmento === 'ESTADO' ? ' selected' : ''}>⚫ Estado</option>
+        </select>
+      </td>
       <td class="id-cell">${esc(emp.dono_id)}</td>
       <td class="id-cell">${esc(emp.estado_id)}</td>
       <td class="num">${fmtNum(Math.round(emp.patrimonio || 0))}</td>
@@ -702,6 +711,7 @@ const FIELD_SETTERS = {
   'atributos.moral':      (e, v) => { e.atributos.moral      = v; },
   'atributos.reputacao':  (e, v) => { e.atributos.reputacao  = v; },
   // Empresa atributos
+  segmento: (e, v) => { e.segmento = v; },
   'atributos.funcionarios':          (e, v) => { e.atributos.funcionarios          = v; },
   'atributos.renda':                 (e, v) => { e.atributos.renda                 = v; },
   'atributos.producao':              (e, v) => { e.atributos.producao              = v; },
@@ -1684,6 +1694,17 @@ function buildEmpresaForm() {
   return `
     <div class="form-row">
       <div class="form-group">
+        <label class="form-label" for="nef-segmento">Segmento (Público-alvo)</label>
+        <select id="nef-segmento" class="cell-input">
+          <option value="POP_NAO_DURAVEL">🟢 Pop. Não Durável</option>
+          <option value="POP_DURAVEL">🔵 Pop. Durável</option>
+          <option value="B2B">🟡 B2B (Insumos)</option>
+          <option value="ESTADO">⚫ Estado/Governo</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label class="form-label" for="nef-dono">Dono</label>
         <select id="nef-dono" class="cell-input">
           <option value="">— nenhum —</option>
@@ -1912,6 +1933,7 @@ function saveNewEntity() {
       nome,
       dono_id:   document.getElementById('nef-dono').value,
       estado_id: document.getElementById('nef-estado').value,
+      segmento:  document.getElementById('nef-segmento').value || 'POP_NAO_DURAVEL',
       patrimonio,
       atributos: {
         funcionarios:          parseFloat(document.getElementById('nef-funcionarios').value) || 0,
@@ -2422,15 +2444,17 @@ function renderSimulacaoTab() {
 
 /**
  * Display a simulation result in the UI.
- * @param {{ targetCompanies: number, series: Object[], meta: Object }} result
+ * Accepts the result of simulateEconomyBySegment() which embeds the macro result.
+ * @param {{ macro: Object, shares: Object, segments: Object }} result
  */
 function displaySimResult(result) {
-  const { targetCompanies, series, meta } = result;
+  // Support both old (simulateEconomy) and new (simulateEconomyBySegment) shapes
+  const hasSeg = result.segments != null;
+  const { targetCompanies, series, meta } = hasSeg ? result.macro : result;
   const container = document.getElementById('sim-result');
   if (!container) return;
 
   const crisisCount = meta.totalCrises;
-  const crisesInSeries = series.filter(s => s.crisis);
 
   // Summary cards
   let html = `
@@ -2461,45 +2485,135 @@ function displaySimResult(result) {
       </div>
     </div>`;
 
-  // Time-series table (show up to 120 rows; truncate if more)
-  const MAX_ROWS = 120;
-  const shown  = series.slice(0, MAX_ROWS);
-  const hidden = series.length - shown.length;
+  // ── Segment breakdown ────────────────────────────────────────────────────────
+  if (hasSeg) {
+    const segKeys   = Object.values(SEGMENTO);
+    const segColors = {
+      [SEGMENTO.POP_NAO_DURAVEL]: 'var(--green)',
+      [SEGMENTO.POP_DURAVEL]:     'var(--blue)',
+      [SEGMENTO.B2B]:             'var(--yellow)',
+      [SEGMENTO.ESTADO]:          'var(--muted)',
+    };
 
-  html += `
-    <div class="table-wrap" style="margin-top:1rem;max-height:50vh;overflow-y:auto">
-      <table>
-        <thead><tr>
-          <th>Passo</th>
-          <th class="num">Empresas</th>
-          <th>Crise?</th>
-          <th class="num">Choque</th>
-          <th>Recuperando?</th>
-        </tr></thead>
-        <tbody>`;
+    html += `
+      <h4 style="margin:1rem 0 0.4rem;font-size:0.85rem">📦 Segmentos (Público-Alvo)</h4>
+      <div class="sim-summary-grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">`;
 
-  for (const row of shown) {
-    const crisisFlag = row.crisis
-      ? '<span style="color:var(--red);font-weight:700">⚡ sim</span>'
-      : '<span style="color:var(--muted)">—</span>';
-    const recFlag = row.recovering
-      ? '<span style="color:var(--yellow)">↗ sim</span>'
-      : '<span style="color:var(--muted)">—</span>';
-    const shockFmt = row.crisis
-      ? `<span style="color:var(--red)">-${(row.crisisShock * 100).toFixed(1)}%</span>`
-      : '<span style="color:var(--muted)">—</span>';
-    html += `<tr${row.crisis ? ' style="background:rgba(248,113,113,0.08)"' : ''}>
-      <td class="num">${row.step}</td>
-      <td class="num">${fmtNum(row.companies)}</td>
-      <td style="text-align:center">${crisisFlag}</td>
-      <td class="num">${shockFmt}</td>
-      <td style="text-align:center">${recFlag}</td>
-    </tr>`;
-  }
+    for (const seg of segKeys) {
+      const sm      = SEGMENTO_META[seg];
+      const segData = result.segments[seg];
+      const last    = segData[segData.length - 1];
+      const share   = ((result.shares[seg] ?? 0) * 100).toFixed(0);
+      const hasStock = last.stockLevel != null;
+      const stockLine = hasStock
+        ? `<div style="font-size:0.72rem;color:var(--muted)">Estoque: ${(last.stockLevel * 100).toFixed(1)}%</div>`
+        : '';
+      html += `
+        <div class="sim-card">
+          <div class="sim-card-label" style="color:${segColors[seg]}">${esc(sm.label)}</div>
+          <div class="sim-card-value">${fmtNum(last.companies)}</div>
+          <div style="font-size:0.72rem;color:var(--muted)">Participação: ${share}%</div>
+          <div style="font-size:0.72rem;color:var(--muted)">Demanda: ${(last.demand * 100).toFixed(1)}%</div>
+          ${stockLine}
+        </div>`;
+    }
+    html += '</div>';
 
-  html += '</tbody></table></div>';
-  if (hidden > 0) {
-    html += `<p style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem">… e mais ${hidden} passos (limitado a ${MAX_ROWS} linhas na exibição).</p>`;
+    // Segment time-series table (collapsible via details)
+    const MAX_ROWS = 120;
+    const shown    = series.slice(0, MAX_ROWS);
+    const hidden   = series.length - shown.length;
+
+    html += `
+      <details style="margin-top:1rem">
+        <summary style="cursor:pointer;font-size:0.85rem;font-weight:600">
+          📊 Série temporal por segmento
+        </summary>
+        <div class="table-wrap" style="margin-top:0.5rem;max-height:50vh;overflow-y:auto">
+          <table>
+            <thead><tr>
+              <th>Passo</th>
+              <th>Crise?</th>
+              <th class="num">🟢 Pop. N-D</th>
+              <th class="num">🔵 Pop. Dur.</th>
+              <th class="num" title="Estoque (%)">Estoque</th>
+              <th class="num">🟡 B2B</th>
+              <th class="num">⚫ Estado</th>
+            </tr></thead>
+            <tbody>`;
+
+    for (const macroRow of shown) {
+      const s = macroRow.step;
+      const crisisFlag = macroRow.crisis
+        ? '<span style="color:var(--red);font-weight:700">⚡</span>'
+        : '<span style="color:var(--muted)">—</span>';
+
+      const nd  = result.segments[SEGMENTO.POP_NAO_DURAVEL][s - 1];
+      const dur = result.segments[SEGMENTO.POP_DURAVEL][s - 1];
+      const b2b = result.segments[SEGMENTO.B2B][s - 1];
+      const est = result.segments[SEGMENTO.ESTADO][s - 1];
+
+      const durStyle = dur.demand < 0.7 ? ' style="color:var(--red)"' : '';
+      const stockTxt = `${(dur.stockLevel * 100).toFixed(1)}%`;
+
+      html += `<tr${macroRow.crisis ? ' style="background:rgba(248,113,113,0.08)"' : ''}>
+        <td class="num">${s}</td>
+        <td style="text-align:center">${crisisFlag}</td>
+        <td class="num">${fmtNum(nd.companies)} <small style="color:var(--muted)">(${(nd.demand*100).toFixed(0)}%)</small></td>
+        <td class="num"${durStyle}>${fmtNum(dur.companies)} <small style="color:var(--muted)">(${(dur.demand*100).toFixed(0)}%)</small></td>
+        <td class="num" style="color:${dur.stockLevel < 0.90 ? 'var(--yellow)' : 'inherit'}">${stockTxt}</td>
+        <td class="num">${fmtNum(b2b.companies)} <small style="color:var(--muted)">(${(b2b.demand*100).toFixed(0)}%)</small></td>
+        <td class="num">${fmtNum(est.companies)} <small style="color:var(--muted)">(${(est.demand*100).toFixed(0)}%)</small></td>
+      </tr>`;
+    }
+
+    html += '</tbody></table></div>';
+    if (hidden > 0) {
+      html += `<p style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem">… e mais ${hidden} passos (limitado a ${MAX_ROWS} linhas na exibição).</p>`;
+    }
+    html += '</details>';
+
+  } else {
+    // Fallback: legacy macro-only table
+    const MAX_ROWS = 120;
+    const shown  = series.slice(0, MAX_ROWS);
+    const hidden = series.length - shown.length;
+
+    html += `
+      <div class="table-wrap" style="margin-top:1rem;max-height:50vh;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th>Passo</th>
+            <th class="num">Empresas</th>
+            <th>Crise?</th>
+            <th class="num">Choque</th>
+            <th>Recuperando?</th>
+          </tr></thead>
+          <tbody>`;
+
+    for (const row of shown) {
+      const crisisFlag = row.crisis
+        ? '<span style="color:var(--red);font-weight:700">⚡ sim</span>'
+        : '<span style="color:var(--muted)">—</span>';
+      const recFlag = row.recovering
+        ? '<span style="color:var(--yellow)">↗ sim</span>'
+        : '<span style="color:var(--muted)">—</span>';
+      const shockFmt = row.crisis
+        ? `<span style="color:var(--red)">-${(row.crisisShock * 100).toFixed(1)}%</span>`
+        : '<span style="color:var(--muted)">—</span>';
+      html += `<tr${row.crisis ? ' style="background:rgba(248,113,113,0.08)"' : ''}>
+        <td class="num">${row.step}</td>
+        <td class="num">${fmtNum(row.companies)}</td>
+        <td style="text-align:center">${crisisFlag}</td>
+        <td class="num">${shockFmt}</td>
+        <td style="text-align:center">${recFlag}</td>
+      </tr>`;
+    }
+
+    html += '</tbody></table></div>';
+    if (hidden > 0) {
+      html += `<p style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem">… e mais ${hidden} passos (limitado a ${MAX_ROWS} linhas na exibição).</p>`;
+    }
   }
 
   container.innerHTML = html;
@@ -2527,12 +2641,12 @@ document.getElementById('btn-run-sim')?.addEventListener('click', () => {
   const seed          = seedRaw ? (parseInt(seedRaw, 10) || undefined) : undefined;
 
   try {
-    const result = simulateEconomy({ stateId, population, economicState, steps, k, seed });
+    const result = simulateEconomyBySegment({ stateId, population, economicState, steps, k, seed });
     lastSimResults[stateId] = result;
     displaySimResult(result);
     setStatus(
       `✅ Simulação de "${esc(estado.nome || stateId)}" concluída: ` +
-      `${result.meta.totalCrises} crises em ${steps} passos.`
+      `${result.macro.meta.totalCrises} crises em ${steps} passos.`
     );
     // Persist last simulation result to IDB via regular save cycle
     if (db) scheduleAutoSave(db);

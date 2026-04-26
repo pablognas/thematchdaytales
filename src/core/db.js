@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS empresas (
   nome                  TEXT NOT NULL DEFAULT '',
   dono_id               TEXT DEFAULT '',
   estado_id             TEXT DEFAULT '',
+  segmento              TEXT DEFAULT 'POP_NAO_DURAVEL',
   patrimonio            REAL DEFAULT 0,
   funcionarios          REAL DEFAULT 0,
   renda                 REAL DEFAULT 0,
@@ -226,7 +227,7 @@ const PESSOAS_COLS = [
 ];
 
 const EMPRESAS_COLS = [
-  'id', 'nome', 'dono_id', 'estado_id',
+  'id', 'nome', 'dono_id', 'estado_id', 'segmento',
   'patrimonio', 'funcionarios', 'renda', 'producao',
   'moral_corporativa', 'reputacao_corporativa', 'lucro',
   'salario_funcionario', 'manutencao', 'insumos',

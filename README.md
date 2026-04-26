@@ -352,17 +352,35 @@ Importar → selecionar arquivo → confirmar → página recarrega com dados re
 
 ## Simulação Econômica (📊 Simulação)
 
-A aba **📊 Simulação** permite estimar quantas empresas deveriam existir em um estado a partir de dados demográficos e econômicos, com eventos estocásticos de crise.
+A aba **📊 Simulação** permite estimar quantas empresas deveriam existir em um estado a partir de dados demográficos e econômicos, com eventos estocásticos de crise e desagregação por **segmento de público-alvo**.
 
 ### Como funciona
 
-A simulação usa a função `simulateEconomy()` em `src/core/economy.js`:
+A simulação usa a função `simulateEconomyBySegment()` em `src/core/economy.js`, que internamente chama `simulateEconomy()` para a dinâmica macro e aplica lógica de demanda específica por segmento:
 
 ```
 empresas_base = população / k
 ```
 
-A cada passo (mês), pode ocorrer uma **crise** com probabilidade configurada, que aplica um choque multiplicativo negativo nas empresas. Após a crise, ocorre recuperação gradual.
+A cada passo (mês), pode ocorrer uma **crise** com probabilidade configurada, que aplica um choque multiplicativo negativo nas empresas. Após a crise, ocorre recuperação gradual. Cada segmento reage de forma diferente ao choque.
+
+### Segmentos de público-alvo
+
+As empresas são classificadas em quatro segmentos (`SEGMENTO` em `economy.js`):
+
+| Segmento              | Constante            | Público-alvo | Tipo de bem     | Share padrão |
+|-----------------------|----------------------|--------------|-----------------|-------------|
+| Pop. Não Durável      | `POP_NAO_DURAVEL`    | POPULACAO    | NAO_DURAVEL     | 40%         |
+| Pop. Durável          | `POP_DURAVEL`        | POPULACAO    | DURAVEL         | 20%         |
+| B2B / Insumos         | `B2B`                | EMPRESAS     | —               | 30%         |
+| Estado / Governo      | `ESTADO`             | ESTADO       | —               | 10%         |
+
+**Dinâmicas de demanda por segmento:**
+
+- **Pop. Não Durável** (alimentos, higiene, etc.): demanda moderadamente sensível a crises; consumida a cada período sem acúmulo.
+- **Pop. Durável** (eletrodomésticos, móveis, etc.): compras adiadas em crises (fator 1,2×); modelo de **estoque** com depreciação de 4%/passo — abaixo de 90% do estoque, inicia-se compra de reposição.
+- **B2B / Insumos**: demanda parcialmente ligada à atividade das empresas (fator 0,6×); crescimento orgânico de 1,2%/passo.
+- **Estado / Governo**: demanda altamente inelástica (fator 0,2×); apenas 0,8%/passo de crescimento orgânico.
 
 ### Parâmetros dos estados econômicos
 
@@ -385,26 +403,51 @@ A cada passo (mês), pode ocorrer uma **crise** com probabilidade configurada, q
 
 ### Resultados
 
-- **Cards de resumo:** empresas-alvo, empresas ao final, total de crises, probabilidade, choque e tempo de recuperação.
-- **Tabela de série temporal:** passo a passo com número de empresas, indicador de crise, choque aplicado e estado de recuperação.
+- **Cards de resumo (macro):** empresas-alvo, empresas ao final, total de crises, probabilidade, choque e tempo de recuperação.
+- **Cards de segmentos:** empresas, demanda e (para duráveis) nível de estoque ao final, por segmento.
+- **Série temporal por segmento (collapsível):** passo a passo com empresas e índice de demanda por segmento; estoque para bens duráveis.
+
+### Atributo `segmento` nas Empresas
+
+Cada entidade **Empresa** possui o campo `segmento` (tipo texto, padrão `POP_NAO_DURAVEL`), persistido no banco de dados. Ao adicionar ou editar uma empresa, selecione o segmento adequado no campo **"Segmento (Público-alvo)"**. Empresas existentes carregadas de backups antigos assumem `POP_NAO_DURAVEL` como padrão.
 
 ### API programática
 
 ```javascript
-import { simulateEconomy } from './src/core/economy.js';
+import {
+  simulateEconomy,
+  simulateEconomyBySegment,
+  PUBLICO_ALVO, TIPO_BEM, SEGMENTO, SEGMENTO_META,
+} from './src/core/economy.js';
 
-const result = simulateEconomy({
-  stateId:       'br_sp',      // ID do estado (para referência)
-  population:    46000000,     // população
-  economicState: 'estavel',    // 'estavel' | 'instavel'
-  seed:          42,           // seed para reprodutibilidade (opcional)
-  steps:         60,           // número de passos / meses
-  k:             1000,         // divisor pop → empresas
+// Simulação macro (retrocompatível)
+const macro = simulateEconomy({
+  stateId: 'br_sp', population: 46000000,
+  economicState: 'estavel', seed: 42, steps: 60, k: 1000,
 });
+macro.targetCompanies  // número-alvo base de empresas
+macro.series           // Array<{ step, companies, crisis, crisisShock, recovering }>
+macro.meta             // { crisisProb, crisisMinShock, crisisMaxShock, ... }
 
-result.targetCompanies   // número-alvo base de empresas
-result.series            // Array<{ step, companies, crisis, crisisShock, recovering }>
-result.meta              // { crisisProb, crisisMinShock, crisisMaxShock, ... }
+// Simulação por segmentos (nova)
+const result = simulateEconomyBySegment({
+  stateId: 'br_sp', population: 46000000,
+  economicState: 'estavel', seed: 42, steps: 60, k: 1000,
+  shares: { POP_NAO_DURAVEL: 0.4, POP_DURAVEL: 0.2, B2B: 0.3, ESTADO: 0.1 }, // opcional
+});
+result.macro     // mesmo retorno de simulateEconomy()
+result.shares    // { POP_NAO_DURAVEL: 0.4, POP_DURAVEL: 0.2, B2B: 0.3, ESTADO: 0.1 }
+result.segments  // { POP_NAO_DURAVEL: [...], POP_DURAVEL: [...], B2B: [...], ESTADO: [...] }
+// cada entrada: { step, companies, demand, revenueIndex, stockLevel? }
+
+// Constantes disponíveis
+PUBLICO_ALVO.POPULACAO // 'POPULACAO'
+PUBLICO_ALVO.EMPRESAS  // 'EMPRESAS'
+PUBLICO_ALVO.ESTADO    // 'ESTADO'
+TIPO_BEM.DURAVEL       // 'DURAVEL'
+TIPO_BEM.NAO_DURAVEL   // 'NAO_DURAVEL'
+SEGMENTO.POP_NAO_DURAVEL // 'POP_NAO_DURAVEL'
+SEGMENTO_META[SEGMENTO.POP_DURAVEL].label // 'Pop. Durável'
 ```
 
 ---

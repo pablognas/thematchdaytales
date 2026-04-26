@@ -867,7 +867,8 @@
       <h3>📊 Simulação de Modelo Econômico</h3>
       <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem">
         Estima quantas empresas deveriam existir em um estado considerando população, estabilidade
-        econômica e crises estocásticas. Cada <em>passo</em> representa um mês.
+        econômica e crises estocásticas. Cada <em>passo</em> representa um mês. Os resultados são
+        desagregados por <strong>segmento de público-alvo</strong>.
       </p>
 
       <div class="sim-controls">
@@ -918,6 +919,14 @@
         <li><strong>Instável:</strong> crise com prob. 20%/mês, choque 15–40%, recuperação em 6–12 meses, crescimento 0,5%/mês.</li>
         <li><strong>Empresas-alvo:</strong> valor base = população ÷ k. Crises reduzem temporariamente, seguida de recuperação gradual.</li>
         <li><strong>Seed:</strong> usar o mesmo seed produz exatamente o mesmo resultado (reprodutibilidade).</li>
+        <li><strong>Segmentos:</strong> as empresas são distribuídas em 4 grupos com dinâmicas de demanda distintas:
+          <ul>
+            <li>🟢 <strong>Pop. Não Durável</strong> (40%): bens consumidos por período (alimentos, higiene). Demanda moderadamente sensível a crises.</li>
+            <li>🔵 <strong>Pop. Durável</strong> (20%): eletrodomésticos, móveis — compras adiadas em crises; modelo de estoque com depreciação.</li>
+            <li>🟡 <strong>B2B / Insumos</strong> (30%): vende para outras empresas. Demanda ligada à atividade produtiva.</li>
+            <li>⚫ <strong>Estado/Governo</strong> (10%): compras públicas — demanda mais estável e inelástica a crises.</li>
+          </ul>
+        </li>
       </ul>
     </div>
 
