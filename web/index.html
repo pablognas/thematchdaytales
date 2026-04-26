@@ -90,6 +90,17 @@
     .btn-red    { background: var(--red);    color: #1a0000; }
     .btn-ghost  { background: transparent; border: 1px solid var(--border); color: var(--muted); }
     .btn-sm     { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
+    .btn-file-upload {
+      padding: 0.45rem 1rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
 
     /* ── Tabs ────────────────────────────────────────────────────────────── */
     .tabs {
@@ -589,7 +600,7 @@
     <button id="btn-tick"      class="btn-green" >▶ Rodar Tick</button>
     <button id="btn-export"    class="btn-blue"  >⬇ Exportar CSV</button>
     <button id="btn-export-db" class="btn-blue"  >💾 Backup SQLite</button>
-    <label class="btn-blue" style="padding:0.45rem 1rem;font-size:0.82rem;font-weight:600;border-radius:6px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:0.35rem" title="Restaurar um arquivo .sqlite de backup">
+    <label class="btn-blue btn-file-upload" title="Restaurar um arquivo .sqlite de backup">
       📂 Importar Backup
       <input type="file" id="file-import-db" accept=".sqlite" style="display:none" />
     </label>

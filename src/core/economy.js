@@ -150,9 +150,9 @@ export function simulateEconomy({
     if (!crisis) {
       if (recoveryLeft > 0) {
         // Linear recovery toward target
-        const gap  = recoveryTarget - companies;
-        const step = Math.ceil(gap / recoveryLeft);
-        companies  = Math.min(recoveryTarget, companies + step);
+        const gap          = recoveryTarget - companies;
+        const recoveryStep = Math.ceil(gap / recoveryLeft);
+        companies          = Math.min(recoveryTarget, companies + recoveryStep);
         recoveryLeft--;
         if (recoveryLeft === 0) recovering = false;
       } else {
