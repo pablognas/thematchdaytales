@@ -24,7 +24,7 @@ import {
 } from '../src/core/world.js';
 import {
   getDb, loadWorldFromDb, saveWorldToDb,
-  scheduleAutoSave, exportDbFile, resetDb,
+  scheduleAutoSave, exportDbFile, importDbFromBuffer, resetDb,
 } from '../src/core/db.js';
 import {
   tickMensal,
@@ -43,6 +43,7 @@ import {
   SCOUTS_ATAQUE, SCOUTS_DEFESA,
   calcMatchScore, calcNewAverage, calcNewMarketValue,
 } from '../src/core/scouts.js';
+import { simulateEconomy } from '../src/core/economy.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
@@ -170,6 +171,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'jogadores')   renderJogadoresTable();
     if (btn.dataset.tab === 'elenco')      renderElencoTab();
     if (btn.dataset.tab === 'transferencias') populateJogadorTransferSelects();
+    if (btn.dataset.tab === 'simulacao')   renderSimulacaoTab();
   });
 });
 
@@ -277,6 +279,30 @@ document.getElementById('btn-export-db')?.addEventListener('click', () => {
   setStatus('💾 Backup SQLite exportado.');
 });
 
+// ── Import SQLite backup ────────────────────────────────────────────────────
+document.getElementById('file-import-db')?.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';   // reset so same file can be re-selected
+
+  if (!window.confirm(
+    `Importar backup "${file.name}"?\n` +
+    'ATENÇÃO: todos os dados atuais serão substituídos pelo conteúdo do backup. ' +
+    'A página será recarregada automaticamente.'
+  )) return;
+
+  setStatus('📂 Importando backup…');
+  try {
+    const buf   = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    await importDbFromBuffer(bytes);
+    // importDbFromBuffer reloads the page — code below won't run on success
+  } catch (err) {
+    setStatus(`⚠ Erro ao importar backup: ${err.message}`);
+    console.error('[import-db]', err);
+  }
+});
+
 // ── Reset database ──────────────────────────────────────────────────────────
 document.getElementById('btn-reset-db')?.addEventListener('click', async () => {
   if (!window.confirm('Resetar banco de dados?\nTodos os dados serão apagados permanentemente. A página será recarregada.')) return;
@@ -300,6 +326,7 @@ function renderAll() {
   populateTransferSelects();
   populateJogadorTransferSelects();
   renderElencoTab();
+  populateSimulacaoEstadoSelect();
 }
 
 // ── Sorting helpers ────────────────────────────────────────────────────────
@@ -2360,6 +2387,170 @@ document.getElementById('mapa-edit-clear').addEventListener('click', () => {
   document.getElementById('mapa-edit-bioma').value   = '';
   document.getElementById('mapa-edit-clima').value   = '';
   setStatus(`Célula (${lat}, ${lon}) limpa.`);
+});
+
+// ── Simulação Econômica ───────────────────────────────────────────────────────
+
+/** Last simulation result, keyed by stateId, for display persistence. */
+const lastSimResults = {};
+
+/**
+ * Populate the estado select in the simulação tab from the loaded world.
+ */
+function populateSimulacaoEstadoSelect() {
+  const sel = document.getElementById('sim-estado-select');
+  if (!sel) return;
+  const prev = sel.value;
+  const opts = world.estados
+    .map(s => `<option value="${esc(s.id)}">${esc(s.nome || s.id)}</option>`)
+    .join('');
+  sel.innerHTML = `<option value="">— Selecione um estado —</option>${opts}`;
+  if (prev) sel.value = prev;
+}
+
+/**
+ * Render the simulação tab UI and restore any previous result.
+ */
+function renderSimulacaoTab() {
+  populateSimulacaoEstadoSelect();
+  const sel       = document.getElementById('sim-estado-select');
+  const stateId   = sel ? sel.value : '';
+  if (stateId && lastSimResults[stateId]) {
+    displaySimResult(lastSimResults[stateId]);
+  }
+}
+
+/**
+ * Display a simulation result in the UI.
+ * @param {{ targetCompanies: number, series: Object[], meta: Object }} result
+ */
+function displaySimResult(result) {
+  const { targetCompanies, series, meta } = result;
+  const container = document.getElementById('sim-result');
+  if (!container) return;
+
+  const crisisCount = meta.totalCrises;
+  const crisesInSeries = series.filter(s => s.crisis);
+
+  // Summary cards
+  let html = `
+    <div class="sim-summary-grid">
+      <div class="sim-card">
+        <div class="sim-card-label">Empresas-alvo (base)</div>
+        <div class="sim-card-value">${fmtNum(targetCompanies)}</div>
+      </div>
+      <div class="sim-card">
+        <div class="sim-card-label">Empresas ao final</div>
+        <div class="sim-card-value">${fmtNum(meta.finalCompanies)}</div>
+      </div>
+      <div class="sim-card">
+        <div class="sim-card-label">Total de crises</div>
+        <div class="sim-card-value" style="color:var(--red)">${crisisCount}</div>
+      </div>
+      <div class="sim-card">
+        <div class="sim-card-label">Prob. crise/passo</div>
+        <div class="sim-card-value">${(meta.crisisProb * 100).toFixed(0)}%</div>
+      </div>
+      <div class="sim-card">
+        <div class="sim-card-label">Choque mín–máx</div>
+        <div class="sim-card-value">${(meta.crisisMinShock*100).toFixed(0)}%–${(meta.crisisMaxShock*100).toFixed(0)}%</div>
+      </div>
+      <div class="sim-card">
+        <div class="sim-card-label">Recuperação média</div>
+        <div class="sim-card-value">${meta.avgRecoverySteps} passos</div>
+      </div>
+    </div>`;
+
+  // Time-series table (show up to 120 rows; truncate if more)
+  const MAX_ROWS = 120;
+  const shown  = series.slice(0, MAX_ROWS);
+  const hidden = series.length - shown.length;
+
+  html += `
+    <div class="table-wrap" style="margin-top:1rem;max-height:50vh;overflow-y:auto">
+      <table>
+        <thead><tr>
+          <th>Passo</th>
+          <th class="num">Empresas</th>
+          <th>Crise?</th>
+          <th class="num">Choque</th>
+          <th>Recuperando?</th>
+        </tr></thead>
+        <tbody>`;
+
+  for (const row of shown) {
+    const crisisFlag = row.crisis
+      ? '<span style="color:var(--red);font-weight:700">⚡ sim</span>'
+      : '<span style="color:var(--muted)">—</span>';
+    const recFlag = row.recovering
+      ? '<span style="color:var(--yellow)">↗ sim</span>'
+      : '<span style="color:var(--muted)">—</span>';
+    const shockFmt = row.crisis
+      ? `<span style="color:var(--red)">-${(row.crisisShock * 100).toFixed(1)}%</span>`
+      : '<span style="color:var(--muted)">—</span>';
+    html += `<tr${row.crisis ? ' style="background:rgba(248,113,113,0.08)"' : ''}>
+      <td class="num">${row.step}</td>
+      <td class="num">${fmtNum(row.companies)}</td>
+      <td style="text-align:center">${crisisFlag}</td>
+      <td class="num">${shockFmt}</td>
+      <td style="text-align:center">${recFlag}</td>
+    </tr>`;
+  }
+
+  html += '</tbody></table></div>';
+  if (hidden > 0) {
+    html += `<p style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem">… e mais ${hidden} passos (limitado a ${MAX_ROWS} linhas na exibição).</p>`;
+  }
+
+  container.innerHTML = html;
+}
+
+// ── Simulation run handler ────────────────────────────────────────────────────
+document.getElementById('btn-run-sim')?.addEventListener('click', () => {
+  const stateId = document.getElementById('sim-estado-select')?.value;
+  if (!stateId) {
+    setStatus('⚠ Selecione um estado para simular.');
+    return;
+  }
+
+  const estado = world.estados.find(s => s.id === stateId);
+  if (!estado) {
+    setStatus('⚠ Estado não encontrado.');
+    return;
+  }
+
+  const population    = estado.atributos?.populacao ?? 0;
+  const economicState = document.getElementById('sim-econ-state')?.value ?? 'estavel';
+  const steps         = parseInt(document.getElementById('sim-steps')?.value ?? '60', 10) || 60;
+  const k             = parseFloat(document.getElementById('sim-k')?.value ?? '1000') || 1000;
+  const seedRaw       = document.getElementById('sim-seed')?.value?.trim();
+  const seed          = seedRaw ? (parseInt(seedRaw, 10) || undefined) : undefined;
+
+  try {
+    const result = simulateEconomy({ stateId, population, economicState, steps, k, seed });
+    lastSimResults[stateId] = result;
+    displaySimResult(result);
+    setStatus(
+      `✅ Simulação de "${esc(estado.nome || stateId)}" concluída: ` +
+      `${result.meta.totalCrises} crises em ${steps} passos.`
+    );
+    // Persist last simulation result to IDB via regular save cycle
+    if (db) scheduleAutoSave(db);
+  } catch (err) {
+    setStatus(`Erro na simulação: ${err.message}`);
+    console.error('[simulacao]', err);
+  }
+});
+
+// Update simulation tab select when states change
+document.getElementById('sim-estado-select')?.addEventListener('change', () => {
+  const stateId = document.getElementById('sim-estado-select').value;
+  const container = document.getElementById('sim-result');
+  if (!stateId || !lastSimResults[stateId]) {
+    if (container) container.innerHTML = '<div class="empty-state">Configure os parâmetros e clique em "▶ Simular".</div>';
+  } else {
+    displaySimResult(lastSimResults[stateId]);
+  }
 });
 
 // ── Initialise ────────────────────────────────────────────────────────────────

@@ -56,7 +56,10 @@ thematchdaytales/
 │       ├── world.js          # Row <-> typed-object converters + ativos helpers
 │       ├── engine.js         # Monthly tick logic + conversion/injection handlers
 │       ├── scheduler.js      # localStorage-based tick scheduler
-│       └── map.js            # ← NEW: getCell / setCell / clearCell / findCellsByEstado
+│       ├── map.js            # getCell / setCell / clearCell / findCellsByEstado
+│       ├── db.js             # SQLite persistence layer (sql.js + IndexedDB)
+│       ├── idb.js            # IndexedDB wrapper (load / save / clear DB bytes)
+│       └── economy.js        # ← NEW: economic simulation (simulateEconomy)
 ├── web/                      # Static web app
 │   ├── index.html
 │   └── app.js
@@ -312,6 +315,97 @@ Deleting a government unit (Estado) is **blocked** if any map cell has `estado_i
 | `produtos.json` | Purchasable goods and their attribute effects |
 | `biomas.json` | Biome names available in the Map editor |
 | `climas.json` | Climate names available in the Map editor |
+
+---
+
+## SQLite Backup — Exportar e Importar
+
+O app armazena todos os dados em um banco SQLite (via sql.js), cujos bytes ficam persistidos no IndexedDB do navegador. É possível exportar e importar esse banco diretamente.
+
+### Exportar backup (`.sqlite`)
+
+Clique no botão **💾 Backup SQLite** no cabeçalho. O navegador fará o download de um arquivo `matchday-tales.sqlite`.
+
+O arquivo pode ser aberto em qualquer cliente SQLite padrão (DB Browser for SQLite, `sqlite3` CLI, etc.) para inspeção ou edição manual.
+
+### Importar backup (`.sqlite`)
+
+1. Clique no botão **📂 Importar Backup** no cabeçalho.
+2. Selecione o arquivo `.sqlite` desejado.
+3. Confirme o diálogo de aviso — **todos os dados atuais serão substituídos**.
+4. A página recarrega automaticamente com os dados restaurados.
+
+**Validações realizadas:**
+
+- O arquivo deve ser um banco SQLite válido (verificação do magic header `SQLite format 3`).
+- Migração de schema é executada automaticamente caso o backup seja de uma versão anterior.
+- Em caso de arquivo inválido, uma mensagem de erro amigável é exibida na barra de status.
+
+**Fluxo completo de backup:**
+
+```
+Exportar → matchday-tales.sqlite → guardar em segurança
+Importar → selecionar arquivo → confirmar → página recarrega com dados restaurados
+```
+
+---
+
+## Simulação Econômica (📊 Simulação)
+
+A aba **📊 Simulação** permite estimar quantas empresas deveriam existir em um estado a partir de dados demográficos e econômicos, com eventos estocásticos de crise.
+
+### Como funciona
+
+A simulação usa a função `simulateEconomy()` em `src/core/economy.js`:
+
+```
+empresas_base = população / k
+```
+
+A cada passo (mês), pode ocorrer uma **crise** com probabilidade configurada, que aplica um choque multiplicativo negativo nas empresas. Após a crise, ocorre recuperação gradual.
+
+### Parâmetros dos estados econômicos
+
+| Parâmetro              | Estável (`estavel`) | Instável (`instavel`) |
+|------------------------|---------------------|-----------------------|
+| Prob. de crise/passo   | 5%                  | 20%                   |
+| Choque mín–máx         | 5%–15%              | 15%–40%               |
+| Recuperação (passos)   | 3–6                 | 6–12                  |
+| Crescimento orgânico   | 2%/mês              | 0,5%/mês              |
+
+### Usando a aba de Simulação
+
+1. Acesse a aba **📊 Simulação**.
+2. Selecione um **Estado** na lista (carregada a partir dos estados na base).
+3. Escolha o **Estado Econômico**: Estável ou Instável.
+4. Defina o número de **Passos (meses)** a simular (padrão: 60).
+5. Ajuste o **Ratio pop/empresa (k)**: `empresas_base = população / k` (padrão: 1000).
+6. Opcionalmente, informe uma **Seed** para reprodutibilidade (mesma seed → mesmo resultado).
+7. Clique em **▶ Simular**.
+
+### Resultados
+
+- **Cards de resumo:** empresas-alvo, empresas ao final, total de crises, probabilidade, choque e tempo de recuperação.
+- **Tabela de série temporal:** passo a passo com número de empresas, indicador de crise, choque aplicado e estado de recuperação.
+
+### API programática
+
+```javascript
+import { simulateEconomy } from './src/core/economy.js';
+
+const result = simulateEconomy({
+  stateId:       'br_sp',      // ID do estado (para referência)
+  population:    46000000,     // população
+  economicState: 'estavel',    // 'estavel' | 'instavel'
+  seed:          42,           // seed para reprodutibilidade (opcional)
+  steps:         60,           // número de passos / meses
+  k:             1000,         // divisor pop → empresas
+});
+
+result.targetCompanies   // número-alvo base de empresas
+result.series            // Array<{ step, companies, crisis, crisisShock, recovering }>
+result.meta              // { crisisProb, crisisMinShock, crisisMaxShock, ... }
+```
 
 ---
 
