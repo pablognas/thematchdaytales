@@ -43,7 +43,7 @@ import {
   SCOUTS_ATAQUE, SCOUTS_DEFESA,
   calcMatchScore, calcNewAverage, calcNewMarketValue,
 } from '../src/core/scouts.js';
-import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META } from '../src/core/economy.js';
+import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEGMENTO_DEMAND_PARAMS } from '../src/core/economy.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
@@ -2536,7 +2536,7 @@ function displaySimResult(result) {
               <th>Crise?</th>
               <th class="num">🟢 Pop. N-D</th>
               <th class="num">🔵 Pop. Dur.</th>
-              <th class="num" title="Estoque (%)">Estoque</th>
+              <th class="num">Estoque (%)</th>
               <th class="num">🟡 B2B</th>
               <th class="num">⚫ Estado</th>
             </tr></thead>
@@ -2548,12 +2548,18 @@ function displaySimResult(result) {
         ? '<span style="color:var(--red);font-weight:700">⚡</span>'
         : '<span style="color:var(--muted)">—</span>';
 
+      // Segment series steps are 1-based and always align with macro steps (verified by simulation logic)
       const nd  = result.segments[SEGMENTO.POP_NAO_DURAVEL][s - 1];
       const dur = result.segments[SEGMENTO.POP_DURAVEL][s - 1];
       const b2b = result.segments[SEGMENTO.B2B][s - 1];
       const est = result.segments[SEGMENTO.ESTADO][s - 1];
 
-      const durStyle = dur.demand < 0.7 ? ' style="color:var(--red)"' : '';
+      // Highlight durable demand in red when below 70% baseline (noticeable distress)
+      const DUR_DEMAND_WARN = 0.70;
+      // Use threshold from simulation params so UI and model stay in sync
+      const DUR_STOCK_WARN  = SEGMENTO_DEMAND_PARAMS[SEGMENTO.POP_DURAVEL].stockThreshold;
+
+      const durStyle = dur.demand < DUR_DEMAND_WARN ? ' style="color:var(--red)"' : '';
       const stockTxt = `${(dur.stockLevel * 100).toFixed(1)}%`;
 
       html += `<tr${macroRow.crisis ? ' style="background:rgba(248,113,113,0.08)"' : ''}>
@@ -2561,7 +2567,7 @@ function displaySimResult(result) {
         <td style="text-align:center">${crisisFlag}</td>
         <td class="num">${fmtNum(nd.companies)} <small style="color:var(--muted)">(${(nd.demand*100).toFixed(0)}%)</small></td>
         <td class="num"${durStyle}>${fmtNum(dur.companies)} <small style="color:var(--muted)">(${(dur.demand*100).toFixed(0)}%)</small></td>
-        <td class="num" style="color:${dur.stockLevel < 0.90 ? 'var(--yellow)' : 'inherit'}">${stockTxt}</td>
+        <td class="num" style="color:${dur.stockLevel < DUR_STOCK_WARN ? 'var(--yellow)' : 'inherit'}">${stockTxt}</td>
         <td class="num">${fmtNum(b2b.companies)} <small style="color:var(--muted)">(${(b2b.demand*100).toFixed(0)}%)</small></td>
         <td class="num">${fmtNum(est.companies)} <small style="color:var(--muted)">(${(est.demand*100).toFixed(0)}%)</small></td>
       </tr>`;

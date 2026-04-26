@@ -292,8 +292,10 @@ export function simulateEconomy({
  * depreciationRate    — stock depreciation per step (DURAVEL only; null otherwise).
  * initialStockLevel   — starting stock relative to "fully stocked" = 1.0 (DURAVEL only).
  * stockThreshold      — stock level below which replacement buying is triggered (DURAVEL).
+ *
+ * @readonly
  */
-const SEGMENTO_DEMAND_PARAMS = Object.freeze({
+export const SEGMENTO_DEMAND_PARAMS = Object.freeze({
   [SEGMENTO.POP_NAO_DURAVEL]: Object.freeze({
     crisisDemandFactor: 0.80,   // non-durables somewhat sensitive (food/cosmetics)
     baselineGrowth:     0.010,  // 1.0%/step organic demand growth
