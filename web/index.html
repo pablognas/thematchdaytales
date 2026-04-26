@@ -536,6 +536,47 @@
     }
     .mc-lon-label-zero { color: #fff; font-weight: 700; }
     .mc-corner { width: 28px; height: 16px; }
+
+    /* ── Simulação tab ────────────────────────────────────────────────────── */
+    .sim-controls {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .sim-controls .form-group { min-width: 140px; }
+
+    .sim-summary-grid {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+
+    .sim-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      min-width: 130px;
+      flex: 1;
+    }
+    .sim-card-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    .sim-card-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: var(--mono);
+    }
   </style>
 </head>
 <body>
@@ -548,6 +589,10 @@
     <button id="btn-tick"      class="btn-green" >▶ Rodar Tick</button>
     <button id="btn-export"    class="btn-blue"  >⬇ Exportar CSV</button>
     <button id="btn-export-db" class="btn-blue"  >💾 Backup SQLite</button>
+    <label class="btn-blue" style="padding:0.45rem 1rem;font-size:0.82rem;font-weight:600;border-radius:6px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:0.35rem" title="Restaurar um arquivo .sqlite de backup">
+      📂 Importar Backup
+      <input type="file" id="file-import-db" accept=".sqlite" style="display:none" />
+    </label>
     <button id="btn-reset-db"  class="btn-red"   title="Apaga todos os dados e recarrega (dev)">🗑 Resetar BD</button>
     <label style="font-size:0.8rem;color:var(--muted);display:flex;align-items:center;gap:0.4rem;cursor:pointer;user-select:none">
       <input type="checkbox" id="toggle-mostrar-arquivados" />
@@ -566,6 +611,7 @@
   <button class="tab-btn"        data-tab="transferencias" role="tab">💸 Transferências</button>
   <button class="tab-btn"        data-tab="agendamento"   role="tab">📅 Agendamentos</button>
   <button class="tab-btn"        data-tab="mapa"          role="tab">🧭 Mapa</button>
+  <button class="tab-btn"        data-tab="simulacao"     role="tab">📊 Simulação</button>
   <button class="tab-btn"        data-tab="log"           role="tab">📋 Log</button>
 </nav>
 
@@ -801,6 +847,69 @@
   <!-- ── Log ──────────────────────────────────────────────────────────── -->
   <section id="tab-log" class="tab-panel" role="tabpanel">
     <div id="log">Nenhum tick executado ainda.</div>
+  </section>
+
+  <!-- ── Simulação Econômica ────────────────────────────────────────────── -->
+  <section id="tab-simulacao" class="tab-panel" role="tabpanel">
+
+    <div class="schedule-section">
+      <h3>📊 Simulação de Modelo Econômico</h3>
+      <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem">
+        Estima quantas empresas deveriam existir em um estado considerando população, estabilidade
+        econômica e crises estocásticas. Cada <em>passo</em> representa um mês.
+      </p>
+
+      <div class="sim-controls">
+        <div class="form-group">
+          <label class="form-label" for="sim-estado-select">Estado</label>
+          <select id="sim-estado-select" class="cell-input" style="min-width:180px">
+            <option value="">— Selecione um estado —</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="sim-econ-state">Estado Econômico</label>
+          <select id="sim-econ-state" class="cell-input">
+            <option value="estavel">✅ Estável</option>
+            <option value="instavel">⚠ Instável</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="sim-steps">Passos (meses)</label>
+          <input id="sim-steps" class="cell-input num" type="number" min="1" max="600" step="12" value="60" style="width:90px" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="sim-k" title="Divisor: empresas = população / k">Ratio pop/empresa (k)</label>
+          <input id="sim-k" class="cell-input num" type="number" min="1" step="100" value="1000" style="width:110px" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="sim-seed" title="Deixe vazio para aleatório">Seed (opcional)</label>
+          <input id="sim-seed" class="cell-input num" type="number" placeholder="aleatório" style="width:110px" />
+        </div>
+
+        <div style="align-self:flex-end">
+          <button id="btn-run-sim" class="btn-green">▶ Simular</button>
+        </div>
+      </div>
+
+      <div id="sim-result">
+        <div class="empty-state">Configure os parâmetros e clique em "▶ Simular".</div>
+      </div>
+    </div>
+
+    <div class="schedule-section" style="margin-top:1.5rem">
+      <h3 style="color:var(--muted);font-size:0.9rem">ℹ Interpretação</h3>
+      <ul style="font-size:0.8rem;color:var(--muted);line-height:1.7;padding-left:1.2rem">
+        <li><strong>Estável:</strong> crise com prob. 5%/mês, choque 5–15%, recuperação em 3–6 meses, crescimento orgânico 2%/mês.</li>
+        <li><strong>Instável:</strong> crise com prob. 20%/mês, choque 15–40%, recuperação em 6–12 meses, crescimento 0,5%/mês.</li>
+        <li><strong>Empresas-alvo:</strong> valor base = população ÷ k. Crises reduzem temporariamente, seguida de recuperação gradual.</li>
+        <li><strong>Seed:</strong> usar o mesmo seed produz exatamente o mesmo resultado (reprodutibilidade).</li>
+      </ul>
+    </div>
+
   </section>
 
   <!-- ── Mapa ─────────────────────────────────────────────────────────── -->

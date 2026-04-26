@@ -11,6 +11,7 @@
  *   saveWorldToDb(db, world)   — replace all world entities in the SQLite DB (sync)
  *   scheduleAutoSave(db)       — debounced (500 ms) persist of DB bytes to IndexedDB
  *   exportDbFile(db)           — download a .sqlite backup (browser only)
+ *   importDbFromBuffer(bytes)  — restore DB from a .sqlite backup Uint8Array (browser only)
  *   resetDb()                  — clear IndexedDB entry and reload (browser only)
  */
 
@@ -323,6 +324,56 @@ export function exportDbFile(db) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * SQLite file magic header (first 16 bytes of any valid .sqlite file).
+ * ASCII: "SQLite format 3\000"
+ */
+const SQLITE_MAGIC = [0x53,0x51,0x4C,0x69,0x74,0x65,0x20,0x66,0x6F,0x72,0x6D,0x61,0x74,0x20,0x33,0x00];
+
+/**
+ * Validate that the given bytes look like a SQLite database.
+ * @param {Uint8Array} bytes
+ * @returns {boolean}
+ */
+export function isSqliteBytes(bytes) {
+  if (!(bytes instanceof Uint8Array) || bytes.length < 16) return false;
+  return SQLITE_MAGIC.every((b, i) => bytes[i] === b);
+}
+
+/**
+ * Restore the database from a raw .sqlite backup buffer.
+ * Validates the magic header, applies any pending migrations, persists the
+ * new bytes to IndexedDB, and reloads the page.  Browser only.
+ *
+ * @param {Uint8Array} bytes  Raw bytes of a .sqlite backup file.
+ * @throws {Error} If the bytes do not appear to be a valid SQLite file.
+ */
+export async function importDbFromBuffer(bytes) {
+  if (!isSqliteBytes(bytes)) {
+    throw new Error('Arquivo inválido: não é um banco de dados SQLite (.sqlite).');
+  }
+
+  const SQL = await loadSqlJs();
+  let imported;
+  try {
+    imported = new SQL.Database(bytes);
+  } catch (err) {
+    throw new Error(`Falha ao abrir o arquivo SQLite: ${err.message}`);
+  }
+
+  // Apply any pending schema migrations so the imported DB is up-to-date.
+  runMigrations(imported);
+
+  // Cancel any in-flight auto-save and discard the current singleton.
+  if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+  _db = null;
+
+  // Persist the imported bytes to IndexedDB, then reload.
+  await saveDbToIndexedDb(imported.export());
+  imported.close();
+  globalThis.location.reload();
 }
 
 /**
