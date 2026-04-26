@@ -108,6 +108,7 @@ export function rowsToEmpresas(rows) {
       nome: r.nome,
       dono_id: r.dono_id,
       estado_id: r.estado_id || '',
+      segmento: r.segmento || 'POP_NAO_DURAVEL',
       patrimonio,
       atributos: {
         funcionarios:          toNum(r.funcionarios, 0),
@@ -140,6 +141,7 @@ export function empresasToRows(empresas) {
     nome: e.nome,
     dono_id: e.dono_id,
     estado_id: e.estado_id,
+    segmento: e.segmento || 'POP_NAO_DURAVEL',
     patrimonio:            Math.round(e.patrimonio || 0),
     funcionarios:          e.atributos.funcionarios,
     renda:                 e.atributos.renda,
