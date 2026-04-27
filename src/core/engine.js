@@ -6,11 +6,12 @@
  *  1. applyScheduledInjections()  — cash injections into caixa / renda_tributaria
  *  2. tickMensal()                — standard monthly economic flows:
  *     a. renda_mensal -> pessoa.caixa (after IRPF -> estado)
- *     b. IRPJ: empresa.lucro * ir_pj -> estado.renda_tributaria
- *     c. Dividendos: lucro*0.3 (post-IRPJ) -> dono.caixa
- *     d. Gastos de classe: if not paid, attribute drops 1 point
- *     e. Salários políticos: estado.renda_tributaria -> político.caixa
- *     f. Investimento cultura & FA: afeta cultura, forcas_armadas, moral_populacao
+ *     b. Produção: empresa.producao = funcionarios**(1+perc_manut)**(1+perc_insumos)
+ *     c. IRPJ: empresa.lucro * ir_pj -> estado.renda_tributaria
+ *     d. Dividendos: lucro*0.3 (post-IRPJ) -> dono.caixa
+ *     e. Gastos de classe: if not paid, attribute drops 1 point
+ *     f. Salários políticos: estado.renda_tributaria -> político.caixa
+ *     g. Investimento cultura & FA: afeta cultura, forcas_armadas, moral_populacao
  *
  * Available conversions are exported so the UI can display them without
  * knowing the engine internals.
@@ -447,7 +448,25 @@ export function tickMensal(config, world) {
     }
   }
 
-  // ── 3 & 4) IRPJ e dividendos ─────────────────────────────────────────────
+  // ── 3) Produção das empresas ─────────────────────────────────────────────
+  // Formula: producao = funcionarios ** (1 + perc_manutencao) ** (1 + perc_insumos)
+  // perc_manutencao and perc_insumos are fractions [0, 1] stored in empresa.custos.
+  // Right-associative exponentiation: base ** (expoM ** expoI).
+  // With 0% reinvestment: producao = funcionarios ** 1 ** 1 = funcionarios.
+  // With 10% each: producao = funcionarios ** (1.1 ** 1.1).
+  for (const emp of world.empresas) {
+    const qtd  = Math.max(0, emp.atributos.funcionarios);
+    const expoM = 1 + Math.max(0, emp.custos.manutencao);
+    const expoI = 1 + Math.max(0, emp.custos.insumos);
+    emp.atributos.producao = qtd ** (expoM ** expoI);
+    log.push(
+      `[Produção] ${emp.nome}: ${qtd} func, manut ${(emp.custos.manutencao * 100).toFixed(1)}%` +
+      `, insumos ${(emp.custos.insumos * 100).toFixed(1)}%` +
+      ` → produção ${emp.atributos.producao.toFixed(2)}`,
+    );
+  }
+
+  // ── 4 & 5) IRPJ e dividendos ─────────────────────────────────────────────
   for (const emp of world.empresas) {
     const estado = estadosById.get(emp.estado_id);
     if (!estado) continue;
