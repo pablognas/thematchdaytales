@@ -466,6 +466,26 @@ export function tickMensal(config, world) {
     );
   }
 
+  // ── 3b) Lucro das empresas ───────────────────────────────────────────────
+  // Formula: lucro = funcionarios ^ insumos ^ manutencao  (^ means exponentiation, NOT XOR)
+  // Interpreted as right-associative power: lucro = funcionarios ** (insumos ** manutencao)
+  // insumos and manutencao are fractions stored in empresa.custos (e.g. 0.1 = 10%).
+  // Edge case: when insumos = 0, the inner exponent 0^x is 0 for x>0, giving lucro=1
+  // regardless of employees. To avoid this, we clamp the effective exponent to a
+  // minimum of 1 when insumos is 0 (neutral: lucro = funcionarios).
+  for (const emp of world.empresas) {
+    const qtd = Math.max(0, emp.atributos.funcionarios);
+    const ins = Math.max(0, emp.custos.insumos);
+    const man = Math.max(0, emp.custos.manutencao);
+    const expo = ins > 0 ? ins ** man : 1;
+    emp.atributos.lucro = qtd ** expo;
+    log.push(
+      `[Lucro] ${emp.nome}: ${qtd} func, insumos ${(ins * 100).toFixed(1)}%` +
+      `, manut ${(man * 100).toFixed(1)}%` +
+      ` → lucro ${emp.atributos.lucro.toFixed(2)}`,
+    );
+  }
+
   // ── 4 & 5) IRPJ e dividendos ─────────────────────────────────────────────
   for (const emp of world.empresas) {
     const estado = estadosById.get(emp.estado_id);

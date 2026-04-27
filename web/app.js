@@ -81,8 +81,8 @@ let jogadoresClubeFilter = '';
 // Show/hide archived entities across all tables
 let mostrarArquivados = false;
 
-// Viewport: center + dimensions (columns = lon count, rows = lat count)
-let mapaVp = { latCenter: 0, lonCenter: 0, rows: 30, cols: 60 };
+// Viewport: center + dimensions (columns = lon count, rows = lat count) + cell pixel size
+let mapaVp = { latCenter: 0, lonCenter: 0, rows: 30, cols: 60, cellSize: 12 };
 
 // Brush state
 let mapaBrushDown   = false;  // is mouse button held on the grid?
@@ -430,7 +430,14 @@ function renderPessoasTable() {
     html += `<tr${isArchived ? ' class="entity-archived"' : ''}>
       <td class="id-cell">${esc(pessoa.id)}</td>
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="nome" value="${esc(pessoa.nome)}" /></td>
-      <td><span class="badge ${badgeClass}">${esc(pessoa.classe)}</span></td>
+      <td>
+        <select class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="classe" style="min-width:110px">
+          <option value="trabalhador"${pessoa.classe === 'trabalhador' ? ' selected' : ''}>Trabalhador</option>
+          <option value="empresario"${pessoa.classe === 'empresario' ? ' selected' : ''}>Empresário</option>
+          <option value="politico"${pessoa.classe === 'politico' ? ' selected' : ''}>Político</option>
+          <option value="jogador"${pessoa.classe === 'jogador' ? ' selected' : ''}>Jogador</option>
+        </select>
+      </td>
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="estado_id" value="${esc(pessoa.estado_id)}" style="width:90px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.influencia" value="${pessoa.atributos.influencia}" style="width:55px" /></td>
       <td class="num">${fmtNum(pessoa.atributos.patrimonio)}</td>
@@ -706,6 +713,8 @@ const FIELD_SETTERS = {
   // Shared text
   nome:      (e, v) => { e.nome      = v; },
   estado_id: (e, v) => { e.estado_id = v; },
+  // Pessoa top-level text
+  classe:    (e, v) => { e.classe    = v; },
   // Pessoa atributos
   'atributos.influencia': (e, v) => { e.atributos.influencia = v; },
   'atributos.moral':      (e, v) => { e.atributos.moral      = v; },
@@ -2085,9 +2094,11 @@ function renderMapaGrid() {
   const { latMin, latMax, lonMin, lonMax } = mapaViewportBounds();
   const rows = latMax - latMin + 1;
   const cols = lonMax - lonMin + 1;
+  const cs   = mapaVp.cellSize;
 
-  grid.style.gridTemplateColumns = `28px repeat(${cols}, 12px)`;
-  grid.style.gridTemplateRows    = `16px repeat(${rows}, 12px)`;
+  grid.style.setProperty('--mc-size', `${cs}px`);
+  grid.style.gridTemplateColumns = `28px repeat(${cols}, ${cs}px)`;
+  grid.style.gridTemplateRows    = `16px repeat(${rows}, ${cs}px)`;
 
   let html = '';
 
@@ -2156,7 +2167,7 @@ function renderMapaGrid() {
 
   // Update zoom info display
   const zoomEl = document.getElementById('mapa-zoom-info');
-  if (zoomEl) zoomEl.textContent = `${cols}×${rows}`;
+  if (zoomEl) zoomEl.textContent = `${cols}×${rows} (${cs}px)`;
 }
 
 /**
@@ -2356,13 +2367,11 @@ document.getElementById('mapa-pan-e').addEventListener('click', () => {
 });
 
 document.getElementById('mapa-zoom-in').addEventListener('click', () => {
-  mapaVp.cols = Math.max(10, mapaVp.cols - 10);
-  mapaVp.rows = Math.max(5,  mapaVp.rows - 5);
+  mapaVp.cellSize = Math.min(32, mapaVp.cellSize + 4);
   renderMapaGrid();
 });
 document.getElementById('mapa-zoom-out').addEventListener('click', () => {
-  mapaVp.cols = Math.min(361, mapaVp.cols + 10);
-  mapaVp.rows = Math.min(181, mapaVp.rows + 5);
+  mapaVp.cellSize = Math.max(4, mapaVp.cellSize - 4);
   renderMapaGrid();
 });
 
