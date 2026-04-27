@@ -470,9 +470,10 @@ export function tickMensal(config, world) {
   // Formula: lucro = funcionarios ^ insumos ^ manutencao  (^ means exponentiation, NOT XOR)
   // Interpreted as right-associative power: lucro = funcionarios ** (insumos ** manutencao)
   // insumos and manutencao are fractions stored in empresa.custos (e.g. 0.1 = 10%).
-  // Edge case: when insumos = 0, the inner exponent 0^x is 0 for x>0, giving lucro=1
-  // regardless of employees. To avoid this, we clamp the effective exponent to a
-  // minimum of 1 when insumos is 0 (neutral: lucro = funcionarios).
+  // Edge case: when insumos = 0, the inner exponent evaluates to 0^manutencao.
+  //   For manutencao > 0: 0^manutencao = 0, so funcionarios^0 = 1 regardless of employees.
+  //   To avoid this unintended result, we clamp expo to a minimum of 1 when insumos = 0,
+  //   giving the neutral result: lucro = funcionarios.
   for (const emp of world.empresas) {
     const qtd = Math.max(0, emp.atributos.funcionarios);
     const ins = Math.max(0, emp.custos.insumos);
