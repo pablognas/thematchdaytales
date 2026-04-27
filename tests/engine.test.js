@@ -1,0 +1,141 @@
+/**
+ * engine.test.js — Unit tests for src/core/engine.js (tickMensal).
+ */
+
+import { test } from 'node:test';
+import assert   from 'node:assert/strict';
+
+import { tickMensal } from '../src/core/engine.js';
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+/** Minimal config stub that satisfies tickMensal's needs. */
+function makeConfig() {
+  return {
+    classes:    { classes: [] },
+    atributos:  {},
+    conversoes: {},
+    fluxos:     {},
+    produtos:   {},
+  };
+}
+
+/** Build a minimal Empresa object. */
+function makeEmpresa({
+  id = 'e1',
+  nome = 'Empresa Teste',
+  estado_id = 'est1',
+  dono_id = '',
+  funcionarios = 10,
+  lucro = 1000,
+  manutencao = 0,
+  insumos = 0,
+} = {}) {
+  return {
+    id,
+    nome,
+    dono_id,
+    estado_id,
+    segmento: 'POP_NAO_DURAVEL',
+    patrimonio: 0,
+    atributos: {
+      funcionarios,
+      renda: 0,
+      producao: 0,
+      moral_corporativa: 3,
+      reputacao_corporativa: 3,
+      lucro,
+    },
+    custos: { salario_funcionario: 0, manutencao, insumos },
+    tick_registro: 0,
+    tick_saida: 0,
+    ativos: { patrimonio_geral: 0 },
+  };
+}
+
+/** Build a minimal Estado object. */
+function makeEstado({ id = 'est1' } = {}) {
+  return {
+    id,
+    nome: 'Estado Teste',
+    atributos: {
+      populacao: 1000,
+      forcas_armadas: 3,
+      cultura: 3,
+      moral_populacao: 3,
+    },
+    impostos: { ir_pf: 0, ir_pj: 0 },
+    financas: {
+      renda_tributaria: 0,
+      salarios_politicos: 0,
+      investimento_cultura: 0,
+      investimento_fa: 0,
+    },
+    tick_registro: 0,
+    tick_saida: 0,
+    patrimonio: 0,
+    ativos: { patrimonio_geral: 0 },
+  };
+}
+
+/** Minimal world stub. */
+function makeWorld({ empresas = [], pessoas = [], estados = [] } = {}) {
+  return { empresas, pessoas, estados };
+}
+
+// ── Produção formula tests ─────────────────────────────────────────────────────
+
+test('producao = funcionarios when manutencao=0 and insumos=0', () => {
+  const emp    = makeEmpresa({ funcionarios: 10, manutencao: 0, insumos: 0 });
+  const world  = makeWorld({ empresas: [emp], estados: [makeEstado()] });
+  tickMensal(makeConfig(), world);
+  // 10 ** (1**1) = 10 ** 1 = 10
+  assert.strictEqual(emp.atributos.producao, 10);
+});
+
+test('producao = funcionarios**1.1**1.1 when manutencao=0.1 and insumos=0.1', () => {
+  const emp    = makeEmpresa({ funcionarios: 10, manutencao: 0.1, insumos: 0.1 });
+  const world  = makeWorld({ empresas: [emp], estados: [makeEstado()] });
+  tickMensal(makeConfig(), world);
+  const expected = 10 ** (1.1 ** 1.1);
+  assert.ok(
+    Math.abs(emp.atributos.producao - expected) < 1e-9,
+    `expected ${expected}, got ${emp.atributos.producao}`,
+  );
+});
+
+test('producao is always >= funcionarios when both percentages are >= 0', () => {
+  const emp    = makeEmpresa({ funcionarios: 5, manutencao: 0.2, insumos: 0.3 });
+  const world  = makeWorld({ empresas: [emp], estados: [makeEstado()] });
+  tickMensal(makeConfig(), world);
+  assert.ok(
+    emp.atributos.producao >= emp.atributos.funcionarios,
+    `producao ${emp.atributos.producao} should be >= funcionarios ${emp.atributos.funcionarios}`,
+  );
+});
+
+test('producao = 0 when funcionarios = 0', () => {
+  const emp   = makeEmpresa({ funcionarios: 0, manutencao: 0.5, insumos: 0.5 });
+  const world = makeWorld({ empresas: [emp], estados: [makeEstado()] });
+  tickMensal(makeConfig(), world);
+  assert.strictEqual(emp.atributos.producao, 0);
+});
+
+test('negative percentages are clamped to 0 (no penalty below zero)', () => {
+  const emp   = makeEmpresa({ funcionarios: 8, manutencao: -0.5, insumos: -0.5 });
+  const world = makeWorld({ empresas: [emp], estados: [makeEstado()] });
+  tickMensal(makeConfig(), world);
+  // Clamped to 0: 8 ** (1 ** 1) = 8
+  assert.strictEqual(emp.atributos.producao, 8);
+});
+
+test('log contains a [Produção] entry for each empresa', () => {
+  const emp1  = makeEmpresa({ id: 'e1', nome: 'Alpha', funcionarios: 5 });
+  const emp2  = makeEmpresa({ id: 'e2', nome: 'Beta',  funcionarios: 7, estado_id: 'est1' });
+  const world = makeWorld({ empresas: [emp1, emp2], estados: [makeEstado()] });
+  const log   = tickMensal(makeConfig(), world);
+  const prodLines = log.filter(l => l.startsWith('[Produção]'));
+  assert.strictEqual(prodLines.length, 2);
+  assert.ok(prodLines.some(l => l.includes('Alpha')));
+  assert.ok(prodLines.some(l => l.includes('Beta')));
+});
