@@ -139,3 +139,61 @@ test('log contains a [Produção] entry for each empresa', () => {
   assert.ok(prodLines.some(l => l.includes('Alpha')));
   assert.ok(prodLines.some(l => l.includes('Beta')));
 });
+
+// ── Lucro formula tests ───────────────────────────────────────────────────────
+// Note: empresa state_id is set to 'NONE' in these tests so the IRPJ/dividends
+// step (which requires a matching estado) is skipped, allowing us to verify the
+// raw lucro formula output without the 30% dividend deduction.
+
+test('lucro = funcionarios when insumos=0 and manutencao=0 (neutral exponent clamped to 1)', () => {
+  const emp   = makeEmpresa({ funcionarios: 10, insumos: 0, manutencao: 0, estado_id: 'NONE' });
+  const world = makeWorld({ empresas: [emp] });
+  tickMensal(makeConfig(), world);
+  // ins=0 → expo clamped to 1 → 10 ** 1 = 10
+  assert.strictEqual(emp.atributos.lucro, 10);
+});
+
+test('lucro uses right-associative exponentiation: funcionarios**(insumos**manutencao)', () => {
+  const emp   = makeEmpresa({ funcionarios: 10, insumos: 0.5, manutencao: 0.5, estado_id: 'NONE' });
+  const world = makeWorld({ empresas: [emp] });
+  tickMensal(makeConfig(), world);
+  const expected = 10 ** (0.5 ** 0.5);
+  assert.ok(
+    Math.abs(emp.atributos.lucro - expected) < 1e-9,
+    `expected ${expected}, got ${emp.atributos.lucro}`,
+  );
+});
+
+test('lucro = funcionarios when insumos=0 regardless of manutencao (edge case clamp)', () => {
+  const emp   = makeEmpresa({ funcionarios: 8, insumos: 0, manutencao: 0.3, estado_id: 'NONE' });
+  const world = makeWorld({ empresas: [emp] });
+  tickMensal(makeConfig(), world);
+  // ins=0 → expo clamped to 1 → 8 ** 1 = 8
+  assert.strictEqual(emp.atributos.lucro, 8);
+});
+
+test('lucro = 0 when funcionarios = 0', () => {
+  const emp   = makeEmpresa({ funcionarios: 0, insumos: 0.5, manutencao: 0.5, estado_id: 'NONE' });
+  const world = makeWorld({ empresas: [emp] });
+  tickMensal(makeConfig(), world);
+  assert.strictEqual(emp.atributos.lucro, 0);
+});
+
+test('lucro negative percentages are clamped to 0 for insumos and manutencao', () => {
+  const emp   = makeEmpresa({ funcionarios: 5, insumos: -0.5, manutencao: -0.5, estado_id: 'NONE' });
+  const world = makeWorld({ empresas: [emp] });
+  tickMensal(makeConfig(), world);
+  // ins clamped to 0 → expo clamped to 1 → 5 ** 1 = 5
+  assert.strictEqual(emp.atributos.lucro, 5);
+});
+
+test('log contains a [Lucro] entry for each empresa', () => {
+  const emp1  = makeEmpresa({ id: 'e1', nome: 'Alpha', funcionarios: 5 });
+  const emp2  = makeEmpresa({ id: 'e2', nome: 'Beta',  funcionarios: 7, estado_id: 'est1' });
+  const world = makeWorld({ empresas: [emp1, emp2], estados: [makeEstado()] });
+  const log   = tickMensal(makeConfig(), world);
+  const lucroLines = log.filter(l => l.startsWith('[Lucro]'));
+  assert.strictEqual(lucroLines.length, 2);
+  assert.ok(lucroLines.some(l => l.includes('Alpha')));
+  assert.ok(lucroLines.some(l => l.includes('Beta')));
+});
