@@ -93,7 +93,7 @@ test('producao = funcionarios when manutencao=0 and insumos=0', () => {
   assert.strictEqual(emp.atributos.producao, 10);
 });
 
-test('producao = funcionarios**1.1**1.1 when manutencao=0.1 and insumos=0.1', () => {
+test('producao uses right-associative exponentiation: funcionarios**(1.1**1.1) when manutencao=0.1 and insumos=0.1', () => {
   const emp    = makeEmpresa({ funcionarios: 10, manutencao: 0.1, insumos: 0.1 });
   const world  = makeWorld({ empresas: [emp], estados: [makeEstado()] });
   tickMensal(makeConfig(), world);
