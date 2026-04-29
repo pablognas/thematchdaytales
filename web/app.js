@@ -511,6 +511,7 @@ function renderEmpresasTable() {
           <option value="POP_DURAVEL"${emp.segmento === 'POP_DURAVEL' ? ' selected' : ''}>🔵 Pop. Dur.</option>
           <option value="B2B"${emp.segmento === 'B2B' ? ' selected' : ''}>🟡 B2B</option>
           <option value="ESTADO"${emp.segmento === 'ESTADO' ? ' selected' : ''}>⚫ Estado</option>
+          <option value="CLUBE"${emp.segmento === 'CLUBE' ? ' selected' : ''}>⚽ Clube</option>
         </select>
       </td>
       <td class="id-cell">${esc(emp.dono_id)}</td>
@@ -1140,24 +1141,33 @@ function populateJogadorTransferSelects() {
   const jogEl  = document.getElementById('jtr-jogador');
   if (!srcEl || !dstEl || !jogEl) return;
 
-  const emptyOpt = '<option value="">— sem dados carregados —</option>';
-  const clubeOpts = world.empresas.length
+  const emptyOpt    = '<option value="">— sem dados carregados —</option>';
+  const semClubeOpt = '<option value="__SEM_CLUBE__">🚫 Sem clube</option>';
+  const clubeOpts   = world.empresas.length
     ? world.empresas.map(e => `<option value="${esc(e.id)}">${esc(e.nome || e.id)}</option>`).join('')
     : emptyOpt;
 
-  srcEl.innerHTML = `<option value="">— Selecione origem —</option>${clubeOpts}`;
-  dstEl.innerHTML = `<option value="">— Selecione destino —</option>${clubeOpts}`;
+  srcEl.innerHTML = `<option value="">— Selecione origem —</option>${semClubeOpt}${clubeOpts}`;
+  dstEl.innerHTML = `<option value="">— Selecione destino —</option>${semClubeOpt}${clubeOpts}`;
 
   populateJtrJogadorSelect();
 }
 
 function populateJtrJogadorSelect() {
-  const srcId = document.getElementById('jtr-src-clube')?.value || '';
+  const srcId = document.getElementById('jtr-src-clube')?.value;
   const jogEl = document.getElementById('jtr-jogador');
   if (!jogEl) return;
 
-  // Players belonging to the selected origin clube
-  const jogadores = world.pessoas.filter(p => p.classe === 'jogador' && p.clube === srcId);
+  if (!srcId) {
+    jogEl.innerHTML = `<option value="">— Selecione uma origem primeiro —</option>`;
+    return;
+  }
+
+  // Players belonging to the selected origin clube (or free agents when "sem clube")
+  const isSemClube = srcId === '__SEM_CLUBE__';
+  const jogadores  = world.pessoas.filter(p =>
+    p.classe === 'jogador' && (isSemClube ? !p.clube : p.clube === srcId)
+  );
   jogEl.innerHTML = jogadores.length
     ? `<option value="">— Selecione jogador —</option>` +
       jogadores.map(j => `<option value="${esc(j.id)}">${esc(j.nome || j.id)}</option>`).join('')
@@ -1187,19 +1197,23 @@ document.getElementById('btn-execute-jtr')?.addEventListener('click', () => {
     return;
   }
 
-  const srcClube = world.empresas.find(e => e.id === srcClubeId);
-  const dstClube = world.empresas.find(e => e.id === dstClubeId);
-  const srcNome  = srcClube?.nome || srcClubeId;
-  const dstNome  = dstClube?.nome || dstClubeId;
+  // Resolve actual clube IDs (__SEM_CLUBE__ sentinel → empty string)
+  const srcId = srcClubeId === '__SEM_CLUBE__' ? '' : srcClubeId;
+  const dstId = dstClubeId === '__SEM_CLUBE__' ? '' : dstClubeId;
+
+  const srcClube = world.empresas.find(e => e.id === srcId);
+  const dstClube = world.empresas.find(e => e.id === dstId);
+  const srcNome  = srcClubeId === '__SEM_CLUBE__' ? 'Sem clube' : (srcClube?.nome || srcClubeId);
+  const dstNome  = dstClubeId === '__SEM_CLUBE__' ? 'Sem clube' : (dstClube?.nome || dstClubeId);
 
   if (jtrType === 'definitiva') {
-    jogador.clube             = dstClubeId;
+    jogador.clube             = dstId;
     jogador.clube_emprestador = '';
   } else {
     // Empréstimo: record the original club as emprestador
     const emprestador = jogador.clube_emprestador || jogador.clube;
-    jogador.clube_emprestador = emprestador || srcClubeId;
-    jogador.clube             = dstClubeId;
+    jogador.clube_emprestador = emprestador || srcId;
+    jogador.clube             = dstId;
   }
 
   const logEl = document.getElementById('jtr-log');
@@ -1228,14 +1242,37 @@ function renderElencoTab() {
   // Populate club dropdown
   const curVal = selectEl.value;
   selectEl.innerHTML = '<option value="">— Selecione um clube —</option>' +
+    '<option value="__SEM_CLUBE__">🚫 Sem clube</option>' +
     world.empresas.map(e => `<option value="${esc(e.id)}">${esc(e.nome || e.id)}</option>`).join('');
-  if (curVal && world.empresas.some(e => e.id === curVal)) {
+  if (curVal === '__SEM_CLUBE__' || (curVal && world.empresas.some(e => e.id === curVal))) {
     selectEl.value = curVal;
   }
 
   const clubeId = selectEl.value;
   if (!clubeId) {
     container.innerHTML = '<div class="empty-state">Selecione um clube para ver seu elenco.</div>';
+    return;
+  }
+
+  if (clubeId === '__SEM_CLUBE__') {
+    const semClube = world.pessoas.filter(p => p.classe === 'jogador' && !p.clube);
+    if (!semClube.length) {
+      container.innerHTML = '<div class="empty-state">Nenhum jogador sem clube encontrado.</div>';
+      return;
+    }
+    const buildSemClubeRows = list => list.map(j => `<tr>
+      <td>${esc(j.nome)}</td>
+      <td>${esc(j.posicao || '–')}</td>
+      <td class="num">${fmtDec(j.nota_scouting || 0, 2)}</td>
+      <td class="num">${fmtNum(j.valor_mercado || 0)}</td>
+      <td>–</td>
+    </tr>`).join('');
+    container.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr>
+        <th>Nome</th><th>Posição</th><th>Nota Scouting</th><th>Valor de Mercado</th><th>Status</th>
+      </tr></thead>
+      <tbody>${buildSemClubeRows(semClube)}</tbody>
+    </table></div>`;
     return;
   }
 
@@ -1709,6 +1746,7 @@ function buildEmpresaForm() {
           <option value="POP_DURAVEL">🔵 Pop. Durável</option>
           <option value="B2B">🟡 B2B (Insumos)</option>
           <option value="ESTADO">⚫ Estado/Governo</option>
+          <option value="CLUBE">⚽ Clube</option>
         </select>
       </div>
     </div>

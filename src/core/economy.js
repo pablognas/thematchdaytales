@@ -61,6 +61,8 @@ export const SEGMENTO = Object.freeze({
   B2B:             'B2B',
   /** State / government procurement. */
   ESTADO:          'ESTADO',
+  /** Sports club / football club entity. */
+  CLUBE:           'CLUBE',
 });
 
 /**
@@ -88,6 +90,11 @@ export const SEGMENTO_META = Object.freeze({
     publicoAlvo: PUBLICO_ALVO.ESTADO,
     tipoBem:     null,
   }),
+  [SEGMENTO.CLUBE]: Object.freeze({
+    label:       'Clube',
+    publicoAlvo: PUBLICO_ALVO.POPULACAO,
+    tipoBem:     null,
+  }),
 });
 
 /**
@@ -99,6 +106,7 @@ const DEFAULT_SEGMENTO_SHARES = Object.freeze({
   [SEGMENTO.POP_DURAVEL]:     0.20,
   [SEGMENTO.B2B]:             0.30,
   [SEGMENTO.ESTADO]:          0.10,
+  [SEGMENTO.CLUBE]:           0.00,
 });
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -320,6 +328,13 @@ export const SEGMENTO_DEMAND_PARAMS = Object.freeze({
   [SEGMENTO.ESTADO]: Object.freeze({
     crisisDemandFactor: 0.20,   // government demand is highly inelastic
     baselineGrowth:     0.008,  // 0.8%/step organic demand growth
+    depreciationRate:   null,
+    initialStockLevel:  null,
+    stockThreshold:     null,
+  }),
+  [SEGMENTO.CLUBE]: Object.freeze({
+    crisisDemandFactor: 0.30,   // sports club demand is relatively inelastic
+    baselineGrowth:     0.005,  // 0.5%/step organic demand growth
     depreciationRate:   null,
     initialStockLevel:  null,
     stockThreshold:     null,
