@@ -391,7 +391,7 @@ export function recomputeEstadoInfrastrutura(world) {
 
   // Set flags from active empresas
   for (const emp of world.empresas) {
-    if (emp.tick_saida) continue;
+    if (emp.tick_saida > 0) continue;
     const tipo = emp.infraestrutura;
     if (!tipo || !INFRAESTRUTURA_TIPOS.includes(tipo)) continue;
     const est = estadoMap.get(emp.estado_id);

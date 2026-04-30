@@ -121,6 +121,20 @@ function fmtDec(n, digits = 2) {
   return Number.isFinite(n) ? n.toFixed(digits) : String(n);
 }
 
+/**
+ * Render the present infrastructure types of an estado as HTML badge spans.
+ * Returns a dash placeholder when none are present.
+ * @param {Object} infraestrutura  The estado.infraestrutura object
+ * @returns {string} HTML string
+ */
+function renderInfraBadges(infraestrutura) {
+  const present = INFRAESTRUTURA_TIPOS.filter(t => infraestrutura?.[t]);
+  if (!present.length) return '<span style="color:var(--muted);font-size:0.75rem">—</span>';
+  return present
+    .map(t => `<span title="${esc(INFRAESTRUTURA_LABEL[t])}" style="font-size:0.75rem;background:var(--accent-subtle,#e8f4e8);border-radius:3px;padding:1px 4px;margin:1px;display:inline-block">${esc(INFRAESTRUTURA_LABEL[t])}</span>`)
+    .join('');
+}
+
 // ── Tick ↔ Date helpers ───────────────────────────────────────────────────────
 // Tick 1 = January 1850. Each tick represents one month.
 const TICK_EPOCH_YEAR = 1850;
@@ -604,10 +618,6 @@ function renderEstadosTable() {
     const parentValid = !est.parent_id || s.some(x => x.id === est.parent_id && x.id !== est.id);
     const parentWarn  = est.parent_id && !parentValid
       ? ` style="border-color:var(--red)" title="parent_id '${esc(est.parent_id)}' não encontrado"` : '';
-    const infraPresente = INFRAESTRUTURA_TIPOS
-      .filter(t => est.infraestrutura?.[t])
-      .map(t => `<span title="${esc(INFRAESTRUTURA_LABEL[t])}" style="font-size:0.75rem;background:var(--accent-subtle,#e8f4e8);border-radius:3px;padding:1px 4px;margin:1px;display:inline-block">${esc(INFRAESTRUTURA_LABEL[t])}</span>`)
-      .join('');
 
     html += `<tr${isArchived ? ' class="entity-archived"' : ''}>
       <td class="id-cell">${esc(est.id)}</td>
@@ -631,7 +641,7 @@ function renderEstadosTable() {
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.incentivos_empresas" value="${est.financas.incentivos_empresas}" style="width:90px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_cultura" value="${est.financas.investimento_cultura}" style="width:90px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_fa" value="${est.financas.investimento_fa}" style="width:80px" /></td>
-      <td style="min-width:140px">${infraPresente || '<span style="color:var(--muted);font-size:0.75rem">—</span>'}</td>
+      <td style="min-width:140px">${renderInfraBadges(est.infraestrutura)}</td>
       <td><button class="btn-ghost btn-sm btn-ativos" data-etype="estado" data-eid="${esc(est.id)}">💎 ${Object.keys(est.ativos || {}).length}</button></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_registro))}</td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_saida))}</td>

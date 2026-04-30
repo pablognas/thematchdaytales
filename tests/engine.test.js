@@ -113,6 +113,14 @@ test('producao = funcionarios when insumos=0 regardless of manutencao (edge case
   assert.strictEqual(emp.atributos.producao, 5);
 });
 
+test('producao = funcionarios when insumos > 0 and manutencao=0 (expo = insumos**0 = 1)', () => {
+  const emp    = makeEmpresa({ funcionarios: 7, manutencao: 0, insumos: 0.5 });
+  const world  = makeWorld({ empresas: [emp], estados: [makeEstado()] });
+  tickMensal(makeConfig(), world);
+  // ins=0.5, man=0: expo = 0.5 ** 0 = 1 → 7 ** 1 = 7
+  assert.strictEqual(emp.atributos.producao, 7);
+});
+
 test('producao = 0 when funcionarios = 0', () => {
   const emp   = makeEmpresa({ funcionarios: 0, manutencao: 0.5, insumos: 0.5 });
   const world = makeWorld({ empresas: [emp], estados: [makeEstado()] });
