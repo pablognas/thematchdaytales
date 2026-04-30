@@ -204,6 +204,7 @@ test('SEGMENTO has expected keys', () => {
   assert.strictEqual(SEGMENTO.POP_DURAVEL,     'POP_DURAVEL');
   assert.strictEqual(SEGMENTO.B2B,             'B2B');
   assert.strictEqual(SEGMENTO.ESTADO,          'ESTADO');
+  assert.strictEqual(SEGMENTO.CLUBE,           'CLUBE');
 });
 
 test('SEGMENTO_META has entry for every SEGMENTO key', () => {
@@ -232,6 +233,11 @@ test('SEGMENTO_META.B2B publicoAlvo is EMPRESAS', () => {
 test('SEGMENTO_META.ESTADO publicoAlvo is ESTADO', () => {
   assert.strictEqual(SEGMENTO_META[SEGMENTO.ESTADO].publicoAlvo, PUBLICO_ALVO.ESTADO);
   assert.strictEqual(SEGMENTO_META[SEGMENTO.ESTADO].tipoBem,     null);
+});
+
+test('SEGMENTO_META.CLUBE publicoAlvo is POPULACAO and tipoBem is null', () => {
+  assert.strictEqual(SEGMENTO_META[SEGMENTO.CLUBE].publicoAlvo, PUBLICO_ALVO.POPULACAO);
+  assert.strictEqual(SEGMENTO_META[SEGMENTO.CLUBE].tipoBem,     null);
 });
 
 // ── simulateEconomyBySegment — basic shape ────────────────────────────────────
