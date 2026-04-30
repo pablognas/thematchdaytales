@@ -449,19 +449,22 @@ export function tickMensal(config, world) {
   }
 
   // ── 3) Produção das empresas ─────────────────────────────────────────────
-  // Formula: producao = funcionarios ** (1 + perc_manutencao) ** (1 + perc_insumos)
-  // perc_manutencao and perc_insumos are fractions [0, 1] stored in empresa.custos.
-  // Right-associative exponentiation: base ** (expoM ** expoI).
-  // With 0% reinvestment: producao = funcionarios ** 1 ** 1 = funcionarios.
-  // With 10% each: producao = funcionarios ** (1.1 ** 1.1).
+  // Formula: producao = qtd_funcionarios ^ perc_insumos ^ perc_manutencao
+  // Right-associative: funcionarios ** (perc_insumos ** perc_manutencao).
+  // perc_insumos and perc_manutencao are fractions [0, 1] stored in empresa.custos.
+  // Edge case: when insumos = 0, the inner exponent evaluates to 0^manutencao.
+  //   For manutencao > 0: 0^manutencao = 0, so funcionarios^0 = 1 regardless of employees.
+  //   To avoid this unintended result, we clamp expo to a minimum of 1 when insumos = 0,
+  //   giving the neutral result: producao = funcionarios.
   for (const emp of world.empresas) {
-    const qtd  = Math.max(0, emp.atributos.funcionarios);
-    const expoM = 1 + Math.max(0, emp.custos.manutencao);
-    const expoI = 1 + Math.max(0, emp.custos.insumos);
-    emp.atributos.producao = qtd ** (expoM ** expoI);
+    const qtd = Math.max(0, emp.atributos.funcionarios);
+    const ins = Math.max(0, emp.custos.insumos);
+    const man = Math.max(0, emp.custos.manutencao);
+    const expo = ins > 0 ? ins ** man : 1;
+    emp.atributos.producao = qtd ** expo;
     log.push(
-      `[Produção] ${emp.nome}: ${qtd} func, manut ${(emp.custos.manutencao * 100).toFixed(1)}%` +
-      `, insumos ${(emp.custos.insumos * 100).toFixed(1)}%` +
+      `[Produção] ${emp.nome}: ${qtd} func, insumos ${(ins * 100).toFixed(1)}%` +
+      `, manut ${(man * 100).toFixed(1)}%` +
       ` → produção ${emp.atributos.producao.toFixed(2)}`,
     );
   }
