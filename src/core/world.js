@@ -7,6 +7,40 @@
  * Use worldAtivosToRows() to serialize them back to CSV rows.
  */
 
+// ── Infraestrutura ────────────────────────────────────────────────────────────
+
+/** Ordered list of infrastructure type keys used for empresa and estado. */
+export const INFRAESTRUTURA_TIPOS = [
+  'creche',
+  'escola_primaria',
+  'escola_secundaria',
+  'ensino_medio',
+  'universidade',
+  'rodoviaria',
+  'aeroporto',
+  'porto',
+  'estacao_trem',
+  'metro',
+  'onibus_municipais',
+  'centro_comercial',
+];
+
+/** Human-readable labels for each infrastructure type. */
+export const INFRAESTRUTURA_LABEL = {
+  creche:            'Creche',
+  escola_primaria:   'Escola Primária',
+  escola_secundaria: 'Escola Secundária',
+  ensino_medio:      'Ensino Médio',
+  universidade:      'Universidade',
+  rodoviaria:        'Rodoviária',
+  aeroporto:         'Aeroporto',
+  porto:             'Porto',
+  estacao_trem:      'Estação de Trem',
+  metro:             'Metrô',
+  onibus_municipais: 'Ônibus Municipais',
+  centro_comercial:  'Centro Comercial',
+};
+
 /** @param {string} v @param {number} [fallback] @returns {number} */
 function toNum(v, fallback = 0) {
   if (v === null || v === undefined || v === '') return fallback;
@@ -111,8 +145,7 @@ export function rowsToEmpresas(rows) {
       dono_id: r.dono_id,
       estado_id: r.estado_id || '',
       segmento: r.segmento || 'POP_NAO_DURAVEL',
-      setor_economico: r.setor_economico || 'servicos',
-      status_economico: r.status_economico || 'estagnacao',
+      infraestrutura: r.infraestrutura || '',
       patrimonio,
       atributos: {
         funcionarios:          toNum(r.funcionarios, 0),
@@ -147,8 +180,7 @@ export function empresasToRows(empresas) {
     dono_id: e.dono_id,
     estado_id: e.estado_id,
     segmento: e.segmento || 'POP_NAO_DURAVEL',
-    setor_economico: e.setor_economico || 'servicos',
-    status_economico: e.status_economico || 'estagnacao',
+    infraestrutura:        e.infraestrutura || '',
     patrimonio:            Math.round(e.patrimonio || 0),
     funcionarios:          e.atributos.funcionarios,
     renda:                 e.atributos.renda,
@@ -200,6 +232,20 @@ export function rowsToEstados(rows) {
         investimento_cultura: toNum(r.investimento_cultura, 0),
         investimento_fa:      toNum(r.investimento_fa, 0),
       },
+      infraestrutura: {
+        creche:            toBool(r.infra_creche),
+        escola_primaria:   toBool(r.infra_escola_primaria),
+        escola_secundaria: toBool(r.infra_escola_secundaria),
+        ensino_medio:      toBool(r.infra_ensino_medio),
+        universidade:      toBool(r.infra_universidade),
+        rodoviaria:        toBool(r.infra_rodoviaria),
+        aeroporto:         toBool(r.infra_aeroporto),
+        porto:             toBool(r.infra_porto),
+        estacao_trem:      toBool(r.infra_estacao_trem),
+        metro:             toBool(r.infra_metro),
+        onibus_municipais: toBool(r.infra_onibus_municipais),
+        centro_comercial:  toBool(r.infra_centro_comercial),
+      },
       tick_registro: toNum(r.tick_registro, 0),
       tick_saida:    toNum(r.tick_saida,    0),
       status_economico: r.status_economico || 'estagnacao',
@@ -233,6 +279,18 @@ export function estadosToRows(estados) {
     incentivos_empresas:  s.financas.incentivos_empresas,
     investimento_cultura: s.financas.investimento_cultura,
     investimento_fa:      s.financas.investimento_fa,
+    infra_creche:            s.infraestrutura?.creche            ? 1 : 0,
+    infra_escola_primaria:   s.infraestrutura?.escola_primaria   ? 1 : 0,
+    infra_escola_secundaria: s.infraestrutura?.escola_secundaria ? 1 : 0,
+    infra_ensino_medio:      s.infraestrutura?.ensino_medio      ? 1 : 0,
+    infra_universidade:      s.infraestrutura?.universidade      ? 1 : 0,
+    infra_rodoviaria:        s.infraestrutura?.rodoviaria        ? 1 : 0,
+    infra_aeroporto:         s.infraestrutura?.aeroporto         ? 1 : 0,
+    infra_porto:             s.infraestrutura?.porto             ? 1 : 0,
+    infra_estacao_trem:      s.infraestrutura?.estacao_trem      ? 1 : 0,
+    infra_metro:             s.infraestrutura?.metro             ? 1 : 0,
+    infra_onibus_municipais: s.infraestrutura?.onibus_municipais ? 1 : 0,
+    infra_centro_comercial:  s.infraestrutura?.centro_comercial  ? 1 : 0,
     tick_registro:        s.tick_registro || 0,
     tick_saida:           s.tick_saida    || 0,
     status_economico:     s.status_economico || 'estagnacao',
@@ -313,5 +371,37 @@ export function reconcilePatrimonio(entity, type) {
     entity.atributos.patrimonio = sum;
   } else {
     entity.patrimonio = sum;
+  }
+}
+
+/**
+ * Recompute the infrastructure binary flags for all estados based on the
+ * active empresas in each estado.
+ * An infrastructure type is present in an estado if at least one active
+ * (tick_saida === 0) empresa with that estado_id has that infraestrutura value.
+ *
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[] }} world
+ */
+export function recomputeEstadoInfrastrutura(world) {
+  // Reset all infra flags
+  for (const est of world.estados) {
+    if (!est.infraestrutura) est.infraestrutura = {};
+    for (const tipo of INFRAESTRUTURA_TIPOS) {
+      est.infraestrutura[tipo] = false;
+    }
+  }
+
+  // Build index for fast lookup
+  const estadoMap = new Map(world.estados.map(s => [s.id, s]));
+
+  // Set flags from active empresas
+  for (const emp of world.empresas) {
+    if (emp.tick_saida > 0) continue;
+    const tipo = emp.infraestrutura;
+    if (!tipo || !INFRAESTRUTURA_TIPOS.includes(tipo)) continue;
+    const est = estadoMap.get(emp.estado_id);
+    if (est) {
+      est.infraestrutura[tipo] = true;
+    }
   }
 }

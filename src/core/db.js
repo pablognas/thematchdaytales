@@ -52,6 +52,18 @@ CREATE TABLE IF NOT EXISTS estados (
   incentivos_empresas  REAL DEFAULT 0,
   investimento_cultura REAL DEFAULT 0,
   investimento_fa      REAL DEFAULT 0,
+  infra_creche            INTEGER DEFAULT 0,
+  infra_escola_primaria   INTEGER DEFAULT 0,
+  infra_escola_secundaria INTEGER DEFAULT 0,
+  infra_ensino_medio      INTEGER DEFAULT 0,
+  infra_universidade      INTEGER DEFAULT 0,
+  infra_rodoviaria        INTEGER DEFAULT 0,
+  infra_aeroporto         INTEGER DEFAULT 0,
+  infra_porto             INTEGER DEFAULT 0,
+  infra_estacao_trem      INTEGER DEFAULT 0,
+  infra_metro             INTEGER DEFAULT 0,
+  infra_onibus_municipais INTEGER DEFAULT 0,
+  infra_centro_comercial  INTEGER DEFAULT 0,
   tick_registro        INTEGER DEFAULT 0,
   tick_saida           INTEGER DEFAULT 0,
   status_economico     TEXT DEFAULT 'estagnacao'
@@ -62,8 +74,7 @@ CREATE TABLE IF NOT EXISTS empresas (
   dono_id               TEXT DEFAULT '',
   estado_id             TEXT DEFAULT '',
   segmento              TEXT DEFAULT 'POP_NAO_DURAVEL',
-  setor_economico       TEXT DEFAULT 'servicos',
-  status_economico      TEXT DEFAULT 'estagnacao',
+  infraestrutura        TEXT DEFAULT '',
   patrimonio            REAL DEFAULT 0,
   funcionarios          REAL DEFAULT 0,
   renda                 REAL DEFAULT 0,
@@ -249,8 +260,7 @@ const PESSOAS_COLS = [
 ];
 
 const EMPRESAS_COLS = [
-  'id', 'nome', 'dono_id', 'estado_id', 'segmento',
-  'setor_economico', 'status_economico',
+  'id', 'nome', 'dono_id', 'estado_id', 'segmento', 'infraestrutura',
   'patrimonio', 'funcionarios', 'renda', 'producao',
   'moral_corporativa', 'reputacao_corporativa', 'lucro',
   'salario_funcionario', 'manutencao', 'insumos',
@@ -262,6 +272,9 @@ const ESTADOS_COLS = [
   'patrimonio', 'populacao', 'forcas_armadas', 'cultura', 'moral_populacao',
   'renda_tributaria', 'ir_pf', 'ir_pj', 'imp_prod',
   'salarios_politicos', 'incentivos_empresas', 'investimento_cultura', 'investimento_fa',
+  'infra_creche', 'infra_escola_primaria', 'infra_escola_secundaria', 'infra_ensino_medio',
+  'infra_universidade', 'infra_rodoviaria', 'infra_aeroporto', 'infra_porto',
+  'infra_estacao_trem', 'infra_metro', 'infra_onibus_municipais', 'infra_centro_comercial',
   'tick_registro', 'tick_saida',
   'status_economico',
 ];

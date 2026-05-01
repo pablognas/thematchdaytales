@@ -85,33 +85,40 @@ function makeWorld({ empresas = [], pessoas = [], estados = [] } = {}) {
 
 // ── Produção formula tests ─────────────────────────────────────────────────────
 
-test('producao = funcionarios when manutencao=0 and insumos=0', () => {
+test('producao = funcionarios when insumos=0 and manutencao=0 (neutral exponent clamped to 1)', () => {
   const emp    = makeEmpresa({ funcionarios: 10, manutencao: 0, insumos: 0 });
   const world  = makeWorld({ empresas: [emp], estados: [makeEstado()] });
   tickMensal(makeConfig(), world);
-  // 10 ** (1**1) = 10 ** 1 = 10
+  // ins=0 → expo clamped to 1 → 10 ** 1 = 10
   assert.strictEqual(emp.atributos.producao, 10);
 });
 
-test('producao uses right-associative exponentiation: funcionarios**(1.1**1.1) when manutencao=0.1 and insumos=0.1', () => {
-  const emp    = makeEmpresa({ funcionarios: 10, manutencao: 0.1, insumos: 0.1 });
+test('producao uses right-associative exponentiation: funcionarios**(insumos**manutencao)', () => {
+  const emp    = makeEmpresa({ funcionarios: 10, manutencao: 0.5, insumos: 0.5 });
   const world  = makeWorld({ empresas: [emp], estados: [makeEstado()] });
   tickMensal(makeConfig(), world);
-  const expected = 10 ** (1.1 ** 1.1);
+  // 10 ** (0.5 ** 0.5)
+  const expected = 10 ** (0.5 ** 0.5);
   assert.ok(
     Math.abs(emp.atributos.producao - expected) < 1e-9,
     `expected ${expected}, got ${emp.atributos.producao}`,
   );
 });
 
-test('producao is always >= funcionarios when both percentages are >= 0', () => {
-  const emp    = makeEmpresa({ funcionarios: 5, manutencao: 0.2, insumos: 0.3 });
+test('producao = funcionarios when insumos=0 regardless of manutencao (edge case clamp)', () => {
+  const emp    = makeEmpresa({ funcionarios: 5, manutencao: 0.3, insumos: 0 });
   const world  = makeWorld({ empresas: [emp], estados: [makeEstado()] });
   tickMensal(makeConfig(), world);
-  assert.ok(
-    emp.atributos.producao >= emp.atributos.funcionarios,
-    `producao ${emp.atributos.producao} should be >= funcionarios ${emp.atributos.funcionarios}`,
-  );
+  // ins=0 → expo clamped to 1 → 5 ** 1 = 5
+  assert.strictEqual(emp.atributos.producao, 5);
+});
+
+test('producao = funcionarios when insumos > 0 and manutencao=0 (expo = insumos**0 = 1)', () => {
+  const emp    = makeEmpresa({ funcionarios: 7, manutencao: 0, insumos: 0.5 });
+  const world  = makeWorld({ empresas: [emp], estados: [makeEstado()] });
+  tickMensal(makeConfig(), world);
+  // ins=0.5, man=0: expo = 0.5 ** 0 = 1 → 7 ** 1 = 7
+  assert.strictEqual(emp.atributos.producao, 7);
 });
 
 test('producao = 0 when funcionarios = 0', () => {
@@ -125,7 +132,7 @@ test('negative percentages are clamped to 0 (no penalty below zero)', () => {
   const emp   = makeEmpresa({ funcionarios: 8, manutencao: -0.5, insumos: -0.5 });
   const world = makeWorld({ empresas: [emp], estados: [makeEstado()] });
   tickMensal(makeConfig(), world);
-  // Clamped to 0: 8 ** (1 ** 1) = 8
+  // Both clamped to 0: ins=0 → expo clamped to 1 → 8 ** 1 = 8
   assert.strictEqual(emp.atributos.producao, 8);
 });
 

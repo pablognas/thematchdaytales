@@ -21,6 +21,8 @@ import {
   rowsToEmpresas, empresasToRows,
   rowsToEstados,  estadosToRows,
   worldAtivosToRows, reconcilePatrimonio,
+  INFRAESTRUTURA_TIPOS, INFRAESTRUTURA_LABEL,
+  recomputeEstadoInfrastrutura,
 } from '../src/core/world.js';
 import {
   getDb, loadWorldFromDb, saveWorldToDb,
@@ -119,6 +121,20 @@ function fmtDec(n, digits = 2) {
   return Number.isFinite(n) ? n.toFixed(digits) : String(n);
 }
 
+/**
+ * Render the present infrastructure types of an estado as HTML badge spans.
+ * Returns a dash placeholder when none are present.
+ * @param {Object} infraestrutura  The estado.infraestrutura object
+ * @returns {string} HTML string
+ */
+function renderInfraBadges(infraestrutura) {
+  const present = INFRAESTRUTURA_TIPOS.filter(t => infraestrutura?.[t]);
+  if (!present.length) return '<span style="color:var(--muted);font-size:0.75rem">—</span>';
+  return present
+    .map(t => `<span title="${esc(INFRAESTRUTURA_LABEL[t])}" style="font-size:0.75rem;background:var(--accent-subtle,#e8f4e8);border-radius:3px;padding:1px 4px;margin:1px;display:inline-block">${esc(INFRAESTRUTURA_LABEL[t])}</span>`)
+    .join('');
+}
+
 // ── Tick ↔ Date helpers ───────────────────────────────────────────────────────
 // Tick 1 = January 1850. Each tick represents one month.
 const TICK_EPOCH_YEAR = 1850;
@@ -199,6 +215,7 @@ function readFile(file) {
  */
 function triggerSave() {
   if (!db) return;
+  recomputeEstadoInfrastrutura(world);
   saveWorldToDb(db, world);
   scheduleAutoSave(db);
 }
@@ -524,8 +541,7 @@ function renderEmpresasTable() {
       <th>ID</th>
       ${sortHeader('Nome', 'nome', 'empresas')}
       <th>Segmento</th>
-      <th>Setor Econ.</th>
-      <th>Status Econ.</th>
+      <th>Infraestrutura</th>
       <th>Dono</th><th>Estado</th>
       ${sortHeader('Patrimônio', 'patrimonio', 'empresas')}
       <th>Funcionários</th><th>Renda</th><th>Produção</th>
@@ -538,6 +554,9 @@ function renderEmpresasTable() {
   for (const emp of sorted) {
     const i = idxMap.get(emp);
     const isArchived = !!emp.tick_saida;
+    const infraOpts = INFRAESTRUTURA_TIPOS.map(t =>
+      `<option value="${esc(t)}"${emp.infraestrutura === t ? ' selected' : ''}>${esc(INFRAESTRUTURA_LABEL[t])}</option>`
+    ).join('');
     html += `<tr${isArchived ? ' class="entity-archived"' : ''}>
       <td class="id-cell">${esc(emp.id)}</td>
       <td><input class="cell-input" data-entity="empresa" data-idx="${i}" data-field="nome" value="${esc(emp.nome)}" /></td>
@@ -550,8 +569,12 @@ function renderEmpresasTable() {
           <option value="CLUBE"${emp.segmento === 'CLUBE' ? ' selected' : ''}>⚽ Clube</option>
         </select>
       </td>
-      <td>${setorEconomicoSelect(i, emp.setor_economico)}</td>
-      <td>${statusEconomicoSelect('empresa', i, emp.status_economico)}</td>
+      <td>
+        <select class="cell-input" data-entity="empresa" data-idx="${i}" data-field="infraestrutura" style="min-width:150px">
+          <option value=""${!emp.infraestrutura ? ' selected' : ''}>— nenhuma —</option>
+          ${infraOpts}
+        </select>
+      </td>
       <td class="id-cell">${esc(emp.dono_id)}</td>
       <td class="id-cell">${esc(emp.estado_id)}</td>
       <td class="num">${fmtNum(Math.round(emp.patrimonio || 0))}</td>
@@ -614,6 +637,7 @@ function renderEstadosTable() {
       <th>Populacão</th><th>Forças Arm.</th><th>Cultura</th><th>Moral Pop.</th>
       <th>Renda Trib.</th><th>IR PF</th><th>IR PJ</th><th>Imp. Prod.</th>
       <th>Sal. Pol.</th><th>Incent. Emp.</th><th>Inv. Cultura</th><th>Inv. FA</th>
+      <th>Infraestrutura</th>
       <th>Ativos</th><th>Registro</th><th>Saída</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
@@ -653,6 +677,7 @@ function renderEstadosTable() {
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.incentivos_empresas" value="${est.financas.incentivos_empresas}" style="width:90px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_cultura" value="${est.financas.investimento_cultura}" style="width:90px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_fa" value="${est.financas.investimento_fa}" style="width:80px" /></td>
+      <td style="min-width:140px">${renderInfraBadges(est.infraestrutura)}</td>
       <td><button class="btn-ghost btn-sm btn-ativos" data-etype="estado" data-eid="${esc(est.id)}">💎 ${Object.keys(est.ativos || {}).length}</button></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_registro))}</td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_saida))}</td>
@@ -763,8 +788,8 @@ const FIELD_SETTERS = {
   'atributos.moral':      (e, v) => { e.atributos.moral      = v; },
   'atributos.reputacao':  (e, v) => { e.atributos.reputacao  = v; },
   // Empresa atributos
-  segmento: (e, v) => { e.segmento = v; },
-  setor_economico: (e, v) => { e.setor_economico = v; },
+  segmento:       (e, v) => { e.segmento       = v; },
+  infraestrutura: (e, v) => { e.infraestrutura = v; },
   'atributos.funcionarios':          (e, v) => { e.atributos.funcionarios          = v; },
   'atributos.renda':                 (e, v) => { e.atributos.renda                 = v; },
   'atributos.producao':              (e, v) => { e.atributos.producao              = v; },
@@ -1790,6 +1815,9 @@ function buildEmpresaForm() {
   const estadoOpts = estados.map(s =>
     `<option value="${esc(s.id)}">${esc(s.nome || s.id)}</option>`
   ).join('');
+  const infraOpts = INFRAESTRUTURA_TIPOS.map(t =>
+    `<option value="${esc(t)}">${esc(INFRAESTRUTURA_LABEL[t])}</option>`
+  ).join('');
   return `
     <div class="form-row">
       <div class="form-group">
@@ -1803,19 +1831,10 @@ function buildEmpresaForm() {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label" for="nef-setor-economico">Setor Econômico</label>
-        <select id="nef-setor-economico" class="cell-input">
-          <option value="agricola">🌾 Agrícola</option>
-          <option value="industrial">🏭 Industrial</option>
-          <option value="servicos" selected>🏢 Serviços</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-status-economico-empresa">Status Econômico</label>
-        <select id="nef-status-economico-empresa" class="cell-input">
-          <option value="recessao">📉 Recessão</option>
-          <option value="estagnacao" selected>➡ Estagnação</option>
-          <option value="crescimento">📈 Crescimento</option>
+        <label class="form-label" for="nef-infraestrutura">Infraestrutura</label>
+        <select id="nef-infraestrutura" class="cell-input">
+          <option value="">— nenhuma —</option>
+          ${infraOpts}
         </select>
       </div>
     </div>
@@ -2058,11 +2077,10 @@ function saveNewEntity() {
     world.empresas.push({
       id,
       nome,
-      dono_id:         document.getElementById('nef-dono').value,
-      estado_id:       document.getElementById('nef-estado').value,
-      segmento:        document.getElementById('nef-segmento').value        || 'POP_NAO_DURAVEL',
-      setor_economico: document.getElementById('nef-setor-economico').value || 'servicos',
-      status_economico: document.getElementById('nef-status-economico-empresa').value || 'estagnacao',
+      dono_id:        document.getElementById('nef-dono').value,
+      estado_id:      document.getElementById('nef-estado').value,
+      segmento:       document.getElementById('nef-segmento').value || 'POP_NAO_DURAVEL',
+      infraestrutura: document.getElementById('nef-infraestrutura').value || '',
       patrimonio,
       atributos: {
         funcionarios:          parseFloat(document.getElementById('nef-funcionarios').value) || 0,
