@@ -391,6 +391,38 @@ document.addEventListener('click', e => {
 });
 
 // ── Pessoas table ────────────────────────────────────────────────────────────
+
+/**
+ * Build a <select> for status_economico for a given entity/index/value.
+ * @param {string} entity  data-entity attribute value
+ * @param {number} i       row index
+ * @param {string} current current status_economico value (may be falsy → defaults to 'estagnacao')
+ * @returns {string} HTML
+ */
+function statusEconomicoSelect(entity, i, current) {
+  const v = current || 'estagnacao';
+  return `<select class="cell-input" data-entity="${esc(entity)}" data-idx="${i}" data-field="status_economico" style="min-width:110px">
+    <option value="recessao"${v === 'recessao' ? ' selected' : ''}>📉 Recessão</option>
+    <option value="estagnacao"${v === 'estagnacao' ? ' selected' : ''}>➡ Estagnação</option>
+    <option value="crescimento"${v === 'crescimento' ? ' selected' : ''}>📈 Crescimento</option>
+  </select>`;
+}
+
+/**
+ * Build a <select> for setor_economico for a given empresa entity/index/value.
+ * @param {number} i       row index
+ * @param {string} current current setor_economico value (may be falsy → defaults to 'servicos')
+ * @returns {string} HTML
+ */
+function setorEconomicoSelect(i, current) {
+  const v = current || 'servicos';
+  return `<select class="cell-input" data-entity="empresa" data-idx="${i}" data-field="setor_economico" style="min-width:110px">
+    <option value="agricola"${v === 'agricola' ? ' selected' : ''}>🌾 Agrícola</option>
+    <option value="industrial"${v === 'industrial' ? ' selected' : ''}>🏭 Industrial</option>
+    <option value="servicos"${v === 'servicos' ? ' selected' : ''}>🏢 Serviços</option>
+  </select>`;
+}
+
 function renderPessoasTable() {
   const container = document.getElementById('table-pessoas');
   const p = world.pessoas;
@@ -440,13 +472,7 @@ function renderPessoasTable() {
         </select>
       </td>
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="estado_id" value="${esc(pessoa.estado_id)}" style="width:90px" /></td>
-      <td>
-        <select class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="status_economico" style="min-width:110px">
-          <option value="recessao"${pessoa.status_economico === 'recessao' ? ' selected' : ''}>📉 Recessão</option>
-          <option value="estagnacao"${(pessoa.status_economico || 'estagnacao') === 'estagnacao' ? ' selected' : ''}>➡ Estagnação</option>
-          <option value="crescimento"${pessoa.status_economico === 'crescimento' ? ' selected' : ''}>📈 Crescimento</option>
-        </select>
-      </td>
+      <td>${statusEconomicoSelect('pessoa', i, pessoa.status_economico)}</td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.influencia" value="${pessoa.atributos.influencia}" style="width:55px" /></td>
       <td class="num">${fmtNum(pessoa.atributos.patrimonio)}</td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.moral" value="${pessoa.atributos.moral}" style="width:55px" /></td>
@@ -524,20 +550,8 @@ function renderEmpresasTable() {
           <option value="CLUBE"${emp.segmento === 'CLUBE' ? ' selected' : ''}>⚽ Clube</option>
         </select>
       </td>
-      <td>
-        <select class="cell-input" data-entity="empresa" data-idx="${i}" data-field="setor_economico" style="min-width:110px">
-          <option value="agricola"${(emp.setor_economico || 'servicos') === 'agricola' ? ' selected' : ''}>🌾 Agrícola</option>
-          <option value="industrial"${emp.setor_economico === 'industrial' ? ' selected' : ''}>🏭 Industrial</option>
-          <option value="servicos"${(emp.setor_economico || 'servicos') === 'servicos' ? ' selected' : ''}>🏢 Serviços</option>
-        </select>
-      </td>
-      <td>
-        <select class="cell-input" data-entity="empresa" data-idx="${i}" data-field="status_economico" style="min-width:110px">
-          <option value="recessao"${emp.status_economico === 'recessao' ? ' selected' : ''}>📉 Recessão</option>
-          <option value="estagnacao"${(emp.status_economico || 'estagnacao') === 'estagnacao' ? ' selected' : ''}>➡ Estagnação</option>
-          <option value="crescimento"${emp.status_economico === 'crescimento' ? ' selected' : ''}>📈 Crescimento</option>
-        </select>
-      </td>
+      <td>${setorEconomicoSelect(i, emp.setor_economico)}</td>
+      <td>${statusEconomicoSelect('empresa', i, emp.status_economico)}</td>
       <td class="id-cell">${esc(emp.dono_id)}</td>
       <td class="id-cell">${esc(emp.estado_id)}</td>
       <td class="num">${fmtNum(Math.round(emp.patrimonio || 0))}</td>
@@ -625,13 +639,7 @@ function renderEstadosTable() {
         ${parentOpts}
       </select></td>
       <td><input class="cell-input" data-entity="estado" data-idx="${i}" data-field="descricao" value="${esc(est.descricao || '')}" style="width:160px" /></td>
-      <td>
-        <select class="cell-input" data-entity="estado" data-idx="${i}" data-field="status_economico" style="min-width:110px">
-          <option value="recessao"${est.status_economico === 'recessao' ? ' selected' : ''}>📉 Recessão</option>
-          <option value="estagnacao"${(est.status_economico || 'estagnacao') === 'estagnacao' ? ' selected' : ''}>➡ Estagnação</option>
-          <option value="crescimento"${est.status_economico === 'crescimento' ? ' selected' : ''}>📈 Crescimento</option>
-        </select>
-      </td>
+      <td>${statusEconomicoSelect('estado', i, est.status_economico)}</td>
       <td class="num">${fmtNum(Math.round(est.patrimonio || 0))}</td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="atributos.populacao" value="${est.atributos.populacao}" style="width:110px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="0.1" data-entity="estado" data-idx="${i}" data-field="atributos.forcas_armadas" value="${est.atributos.forcas_armadas}" style="width:60px" /></td>

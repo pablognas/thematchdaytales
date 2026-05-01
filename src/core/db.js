@@ -157,8 +157,13 @@ function runMigrations(db) {
   db.run(SCHEMA_SQL);
   db.run(`INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', ?)`, [String(DB_VERSION)]);
 
-  // Add new columns to existing tables (safe to run even if column already exists — caught and ignored)
+  // Add new columns to existing tables (safe to run even if column already exists — caught and ignored).
+  // Only alphanumeric + underscore names are accepted to prevent SQL injection via table/col names.
+  const SAFE_NAME = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
   const addColIfMissing = (table, col, def) => {
+    if (!SAFE_NAME.test(table) || !SAFE_NAME.test(col)) {
+      throw new Error(`Unsafe table or column name: ${table}.${col}`);
+    }
     try {
       db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
     } catch (_) { /* column already exists */ }
