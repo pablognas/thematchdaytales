@@ -472,6 +472,25 @@ export function reconcilePatrimonio(entity, type) {
 }
 
 /**
+ * Compute the total population weight for a given estado,
+ * defined as the sum of pessoa.peso for all active (tick_saida === 0)
+ * pessoas whose estado_id matches.
+ *
+ * This is the canonical "population" value in the simplified economic model,
+ * where each pessoa row represents an aggregate group of people rather than
+ * a single individual.
+ *
+ * @param {string} estadoId
+ * @param {Object[]} pessoas
+ * @returns {number}
+ */
+export function calcularPopulacaoEstado(estadoId, pessoas) {
+  return (pessoas || [])
+    .filter(p => p.estado_id === estadoId && !p.tick_saida)
+    .reduce((sum, p) => sum + Math.max(1, p.peso || 1), 0);
+}
+
+/**
  * Recompute the infrastructure binary flags for all estados based on the
  * active empresas in each estado.
  * An infrastructure type is present in an estado if at least one active

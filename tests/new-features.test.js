@@ -28,6 +28,7 @@ import {
   rowsToClubes, clubesToRows,
   rowsToEstados, estadosToRows,
   applyAtivos, worldAtivosToRows,
+  calcularPopulacaoEstado,
 } from '../src/core/world.js';
 
 import {

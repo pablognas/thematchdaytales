@@ -360,9 +360,9 @@ function renderAll() {
 function sortedEntities(arr, by, dir) {
   return [...arr].sort((a, b) => {
     let va, vb;
-    if (by === 'patrimonio') {
-      va = a.patrimonio ?? a.atributos?.patrimonio ?? 0;
-      vb = b.patrimonio ?? b.atributos?.patrimonio ?? 0;
+    if (by === 'peso') {
+      va = a.peso ?? 1;
+      vb = b.peso ?? 1;
       return dir * (va - vb);
     }
     if (by === 'nota_scouting' || by === 'valor_mercado') {
@@ -428,6 +428,19 @@ function statusEconomicoSelect(entity, i, current) {
 }
 
 /**
+ * Compute the total population weight (sum of pessoa.peso) for a given estado.
+ * Only counts active (tick_saida === 0) pessoas belonging to that estado.
+ * @param {string} estadoId
+ * @param {Object[]} pessoas
+ * @returns {number}
+ */
+function calcPopulacaoEstado(estadoId, pessoas) {
+  return pessoas
+    .filter(p => p.estado_id === estadoId && !p.tick_saida)
+    .reduce((sum, p) => sum + (p.peso || 1), 0);
+}
+
+/**
  * Build a <select> for setor_economico for a given empresa entity/index/value.
  * @param {number} i       row index
  * @param {string} current current setor_economico value (may be falsy → defaults to 'servicos')
@@ -466,19 +479,14 @@ function renderPessoasTable() {
       ${sortHeader('Nome', 'nome', 'pessoas')}
       <th>Classe</th><th>Estado</th>
       <th>Status Econ.</th>
-      <th>Influência</th>
-      ${sortHeader('Patrimônio', 'patrimonio', 'pessoas')}
-      <th>Moral</th><th>Reputação</th>
-      <th>Renda Mensal</th><th>Caixa</th>
-      <th>Gasto Infl.</th><th>Gasto Moral</th><th>Gasto Rep.</th>
-      <th>Ativos</th><th>Registro</th><th>Saída</th><th>Ações</th>
+      ${sortHeader('Peso', 'peso', 'pessoas')}
+      <th>Registro</th><th>Saída</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
   for (const pessoa of sorted) {
     const i = idxMap.get(pessoa);
     const isArchived = !!pessoa.tick_saida;
-    const badgeClass = `badge-${pessoa.classe}`;
     html += `<tr${isArchived ? ' class="entity-archived"' : ''}>
       <td class="id-cell">${esc(pessoa.id)}</td>
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="nome" value="${esc(pessoa.nome)}" /></td>
@@ -492,16 +500,7 @@ function renderPessoasTable() {
       </td>
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="estado_id" value="${esc(pessoa.estado_id)}" style="width:90px" /></td>
       <td>${statusEconomicoSelect('pessoa', i, pessoa.status_economico)}</td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.influencia" value="${pessoa.atributos.influencia}" style="width:55px" /></td>
-      <td class="num">${fmtNum(pessoa.atributos.patrimonio)}</td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.moral" value="${pessoa.atributos.moral}" style="width:55px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.reputacao" value="${pessoa.atributos.reputacao}" style="width:55px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="pessoa" data-idx="${i}" data-field="renda_mensal" value="${pessoa.renda_mensal}" style="width:100px" /></td>
-      <td class="num"><input class="cell-input num" type="number" data-entity="pessoa" data-idx="${i}" data-field="caixa" value="${Math.round(pessoa.caixa)}" style="width:100px" /></td>
-      <td style="text-align:center"><input type="checkbox" data-entity="pessoa" data-idx="${i}" data-field="gastos_mensais_pagos.influencia" ${pessoa.gastos_mensais_pagos.influencia ? 'checked' : ''} /></td>
-      <td style="text-align:center"><input type="checkbox" data-entity="pessoa" data-idx="${i}" data-field="gastos_mensais_pagos.moral" ${pessoa.gastos_mensais_pagos.moral ? 'checked' : ''} /></td>
-      <td style="text-align:center"><input type="checkbox" data-entity="pessoa" data-idx="${i}" data-field="gastos_mensais_pagos.reputacao" ${pessoa.gastos_mensais_pagos.reputacao ? 'checked' : ''} /></td>
-      <td><button class="btn-ghost btn-sm btn-ativos" data-etype="pessoa" data-eid="${esc(pessoa.id)}">💎 ${Object.keys(pessoa.ativos || {}).length}</button></td>
+      <td class="num"><input class="cell-input num" type="number" min="1" step="1" data-entity="pessoa" data-idx="${i}" data-field="peso" value="${pessoa.peso ?? 1}" style="width:70px" title="Quantidade agregada de pessoas neste grupo" /></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(pessoa.tick_registro))}</td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(pessoa.tick_saida))}</td>
       <td style="white-space:nowrap">
@@ -543,13 +542,11 @@ function renderEmpresasTable() {
       <th>ID</th>
       ${sortHeader('Nome', 'nome', 'empresas')}
       <th>Segmento</th>
+      <th>Setor</th>
       <th>Infraestrutura</th>
       <th>Dono</th><th>Estado</th>
-      ${sortHeader('Patrimônio', 'patrimonio', 'empresas')}
-      <th>Funcionários</th><th>Renda</th><th>Produção</th>
-      <th>Moral Corp.</th><th>Rep. Corp.</th><th>Lucro</th>
-      <th>Sal. Func.</th><th>Manutenção</th><th>Insumos</th>
-      <th>Ativos</th><th>Registro</th><th>Saída</th><th>Ações</th>
+      <th>Status Econ.</th>
+      <th>Registro</th><th>Saída</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
@@ -571,6 +568,7 @@ function renderEmpresasTable() {
           <option value="CLUBE"${emp.segmento === 'CLUBE' ? ' selected' : ''}>⚽ Clube</option>
         </select>
       </td>
+      <td>${setorEconomicoSelect(i, emp.setor_economico)}</td>
       <td>
         <select class="cell-input" data-entity="empresa" data-idx="${i}" data-field="infraestrutura" style="min-width:150px">
           <option value=""${!emp.infraestrutura ? ' selected' : ''}>— nenhuma —</option>
@@ -579,17 +577,7 @@ function renderEmpresasTable() {
       </td>
       <td class="id-cell">${esc(emp.dono_id)}</td>
       <td class="id-cell">${esc(emp.estado_id)}</td>
-      <td class="num">${fmtNum(Math.round(emp.patrimonio || 0))}</td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="atributos.funcionarios" value="${emp.atributos.funcionarios}" style="width:70px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="atributos.renda" value="${emp.atributos.renda}" style="width:100px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="atributos.producao" value="${emp.atributos.producao}" style="width:80px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="0.1" data-entity="empresa" data-idx="${i}" data-field="atributos.moral_corporativa" value="${emp.atributos.moral_corporativa}" style="width:55px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="0.1" data-entity="empresa" data-idx="${i}" data-field="atributos.reputacao_corporativa" value="${emp.atributos.reputacao_corporativa}" style="width:55px" /></td>
-      <td class="num"><input class="cell-input num" type="number" data-entity="empresa" data-idx="${i}" data-field="atributos.lucro" value="${Math.round(emp.atributos.lucro)}" style="width:100px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="custos.salario_funcionario" value="${emp.custos.salario_funcionario}" style="width:80px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="custos.manutencao" value="${emp.custos.manutencao}" style="width:90px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="empresa" data-idx="${i}" data-field="custos.insumos" value="${emp.custos.insumos}" style="width:90px" /></td>
-      <td><button class="btn-ghost btn-sm btn-ativos" data-etype="empresa" data-eid="${esc(emp.id)}">💎 ${Object.keys(emp.ativos || {}).length}</button></td>
+      <td>${statusEconomicoSelect('empresa', i, emp.status_economico)}</td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(emp.tick_registro))}</td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(emp.tick_saida))}</td>
       <td style="white-space:nowrap">
@@ -626,28 +614,21 @@ function renderEstadosTable() {
     return;
   }
 
-  // Pre-compute set of estado IDs that have at least one direct child
-  const parentIds = new Set(s.filter(x => x.parent_id).map(x => x.parent_id));
-
   let html = `<div class="table-wrap"><table>
     <thead><tr>
       <th>ID</th>
       ${sortHeader('Nome', 'nome', 'estados')}
       <th>Tipo</th><th>Parent</th><th>Descrição</th>
       <th>Status Econ.</th>
-      ${sortHeader('Patrimônio', 'patrimonio', 'estados')}
-      <th>Populacão</th><th>Forças Arm.</th><th>Cultura</th><th>Moral Pop.</th>
-      <th>Renda Trib.</th><th>IR PF</th><th>IR PJ</th><th>Imp. Prod.</th>
-      <th>Sal. Pol.</th><th>Incent. Emp.</th><th>Inv. Cultura</th><th>Inv. FA</th>
+      <th title="Soma de peso das pessoas ativas neste estado">Pop. (peso)</th>
       <th>Infraestrutura</th>
-      <th>Ativos</th><th>Registro</th><th>Saída</th><th>Ações</th>
+      <th>Registro</th><th>Saída</th><th>Ações</th>
     </tr></thead>
     <tbody>`;
 
   for (const est of sorted) {
     const i = idxMap.get(est);
     const isArchived  = !!est.tick_saida;
-    const hasChildren = parentIds.has(est.id);
     const parentOpts = s
       .filter(x => x.id !== est.id)
       .map(x => `<option value="${esc(x.id)}" ${est.parent_id === x.id ? 'selected' : ''}>${esc(x.nome || x.id)}</option>`)
@@ -655,6 +636,8 @@ function renderEstadosTable() {
     const parentValid = !est.parent_id || s.some(x => x.id === est.parent_id && x.id !== est.id);
     const parentWarn  = est.parent_id && !parentValid
       ? ` style="border-color:var(--red)" title="parent_id '${esc(est.parent_id)}' não encontrado"` : '';
+
+    const popTotal = calcPopulacaoEstado(est.id, world.pessoas);
 
     html += `<tr${isArchived ? ' class="entity-archived"' : ''}>
       <td class="id-cell">${esc(est.id)}</td>
@@ -666,25 +649,11 @@ function renderEstadosTable() {
       </select></td>
       <td><input class="cell-input" data-entity="estado" data-idx="${i}" data-field="descricao" value="${esc(est.descricao || '')}" style="width:160px" /></td>
       <td>${statusEconomicoSelect('estado', i, est.status_economico)}</td>
-      <td class="num">${fmtNum(Math.round(est.patrimonio || 0))}</td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="atributos.populacao" value="${est.atributos.populacao}" style="width:110px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="0.1" data-entity="estado" data-idx="${i}" data-field="atributos.forcas_armadas" value="${est.atributos.forcas_armadas}" style="width:60px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="0.1" data-entity="estado" data-idx="${i}" data-field="atributos.cultura" value="${est.atributos.cultura}" style="width:60px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="0.1" data-entity="estado" data-idx="${i}" data-field="atributos.moral_populacao" value="${est.atributos.moral_populacao}" style="width:60px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.renda_tributaria" value="${Math.round(est.financas.renda_tributaria)}" style="width:110px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="1" step="0.01" data-entity="estado" data-idx="${i}" data-field="impostos.ir_pf" value="${est.impostos.ir_pf}" style="width:60px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="1" step="0.01" data-entity="estado" data-idx="${i}" data-field="impostos.ir_pj" value="${est.impostos.ir_pj}" style="width:60px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" max="1" step="0.01" data-entity="estado" data-idx="${i}" data-field="impostos.imp_prod" value="${est.impostos.imp_prod}" style="width:60px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.salarios_politicos" value="${est.financas.salarios_politicos}" style="width:80px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.incentivos_empresas" value="${est.financas.incentivos_empresas}" style="width:90px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_cultura" value="${est.financas.investimento_cultura}" style="width:90px" /></td>
-      <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="financas.investimento_fa" value="${est.financas.investimento_fa}" style="width:80px" /></td>
+      <td class="num" title="Soma do campo peso das pessoas ativas neste estado">${fmtNum(popTotal)}</td>
       <td style="min-width:140px">${renderInfraBadges(est.infraestrutura)}</td>
-      <td><button class="btn-ghost btn-sm btn-ativos" data-etype="estado" data-eid="${esc(est.id)}">💎 ${Object.keys(est.ativos || {}).length}</button></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_registro))}</td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_saida))}</td>
       <td style="white-space:nowrap">
-        ${hasChildren ? `<button class="btn-ghost btn-sm btn-update-pop" data-eid="${esc(est.id)}" title="Soma a população dos filhos diretos">👥 Atualizar população</button>` : ''}
         ${isArchived
           ? `<button class="btn-ghost btn-sm btn-reactivate-entity" data-etype="estado" data-eid="${esc(est.id)}">🔄 Reativar</button>`
           : `<button class="btn-ghost btn-sm btn-archive-entity"    data-etype="estado" data-eid="${esc(est.id)}">📤 Arquivar</button>`
@@ -754,11 +723,6 @@ function bindTableInputs(container) {
     btn.addEventListener('click', () => reactivateEntity(btn.dataset.etype, btn.dataset.eid));
   });
 
-  // Update population buttons (estados with children)
-  container.querySelectorAll('.btn-update-pop').forEach(btn => {
-    btn.addEventListener('click', () => updatePopulacaoPai(btn.dataset.eid));
-  });
-
   // Delete entity buttons
   container.querySelectorAll('.btn-delete-entity').forEach(btn => {
     btn.addEventListener('click', () => deleteEntity(btn.dataset.etype, btn.dataset.eid));
@@ -783,57 +747,24 @@ const FIELD_SETTERS = {
   estado_id: (e, v) => { e.estado_id = v; },
   // Economic status (pessoa, empresa, estado)
   status_economico: (e, v) => { e.status_economico = v; },
-  // Pessoa top-level text
+  // Pessoa qualitative fields
   classe:    (e, v) => { e.classe    = v; },
-  // Pessoa atributos
-  'atributos.influencia': (e, v) => { e.atributos.influencia = v; },
-  'atributos.moral':      (e, v) => { e.atributos.moral      = v; },
-  'atributos.reputacao':  (e, v) => { e.atributos.reputacao  = v; },
-  // Empresa atributos
-  segmento:       (e, v) => { e.segmento       = v; },
-  infraestrutura: (e, v) => { e.infraestrutura = v; },
-  'atributos.funcionarios':          (e, v) => { e.atributos.funcionarios          = v; },
-  'atributos.renda':                 (e, v) => { e.atributos.renda                 = v; },
-  'atributos.producao':              (e, v) => { e.atributos.producao              = v; },
-  'atributos.moral_corporativa':     (e, v) => { e.atributos.moral_corporativa     = v; },
-  'atributos.reputacao_corporativa': (e, v) => { e.atributos.reputacao_corporativa = v; },
-  'atributos.lucro':                 (e, v) => { e.atributos.lucro                 = v; },
-  // Estado atributos
-  'atributos.populacao':       (e, v) => { e.atributos.populacao       = v; },
-  'atributos.forcas_armadas':  (e, v) => { e.atributos.forcas_armadas  = v; },
-  'atributos.cultura':         (e, v) => { e.atributos.cultura         = v; },
-  'atributos.moral_populacao': (e, v) => { e.atributos.moral_populacao = v; },
-  // Pessoa top-level
-  renda_mensal: (e, v) => { e.renda_mensal = v; },
-  caixa:        (e, v) => { e.caixa        = v; },
-  // Pessoa gastos
-  'gastos_mensais_pagos.influencia': (e, v) => { e.gastos_mensais_pagos.influencia = v; },
-  'gastos_mensais_pagos.moral':      (e, v) => { e.gastos_mensais_pagos.moral      = v; },
-  'gastos_mensais_pagos.reputacao':  (e, v) => { e.gastos_mensais_pagos.reputacao  = v; },
-  // Empresa custos
-  'custos.salario_funcionario': (e, v) => { e.custos.salario_funcionario = v; },
-  'custos.manutencao':          (e, v) => { e.custos.manutencao          = v; },
-  'custos.insumos':             (e, v) => { e.custos.insumos             = v; },
-  // Estado financas
-  'financas.renda_tributaria':     (e, v) => { e.financas.renda_tributaria     = v; },
-  'financas.salarios_politicos':   (e, v) => { e.financas.salarios_politicos   = v; },
-  'financas.incentivos_empresas':  (e, v) => { e.financas.incentivos_empresas  = v; },
-  'financas.investimento_cultura': (e, v) => { e.financas.investimento_cultura = v; },
-  'financas.investimento_fa':      (e, v) => { e.financas.investimento_fa      = v; },
-  // Estado impostos
-  'impostos.ir_pf':    (e, v) => { e.impostos.ir_pf    = v; },
-  'impostos.ir_pj':    (e, v) => { e.impostos.ir_pj    = v; },
-  'impostos.imp_prod': (e, v) => { e.impostos.imp_prod = v; },
-  // Estado hierarchy
+  // Pessoa population weight (aggregate count)
+  peso:      (e, v) => { e.peso = Math.max(1, Math.round(Number(v) || 1)); },
+  // Empresa qualitative fields
+  segmento:        (e, v) => { e.segmento        = v; },
+  setor_economico: (e, v) => { e.setor_economico = v; },
+  infraestrutura:  (e, v) => { e.infraestrutura  = v; },
+  // Estado hierarchy / descriptive fields
   tipo:      (e, v) => { e.tipo      = v; },
   parent_id: (e, v) => { e.parent_id = v; },
   descricao: (e, v) => { e.descricao = v; },
-  // Pessoa jogador stats
-  nota_scouting: (e, v) => { e.nota_scouting = v; },
-  valor_mercado:  (e, v) => { e.valor_mercado  = Math.max(0, v); },
-  posicao:        (e, v) => { e.posicao        = v; },
-  clube:             (e, v) => { e.clube             = v; },
-  clube_emprestador: (e, v) => { e.clube_emprestador = v; },
+  // Pessoa jogador stats (used by jogadores tab)
+  nota_scouting:     (e, v) => { e.nota_scouting     = v; },
+  valor_mercado:     (e, v) => { e.valor_mercado      = Math.max(0, v); },
+  posicao:           (e, v) => { e.posicao            = v; },
+  clube:             (e, v) => { e.clube              = v; },
+  clube_emprestador: (e, v) => { e.clube_emprestador  = v; },
 };
 
 /** Apply a known field update to an entity. Ignores unknown paths. */
@@ -1583,37 +1514,6 @@ function reactivateEntity(type, id) {
   setStatus(`🔄 ${entityTypeLabel(type)} "${entity.nome || id}" reativado(a).`);
 }
 
-// ── Population aggregation ────────────────────────────────────────────────────
-
-/**
- * Sum the populations of the direct children of a given parent estado.
- * Only immediate children (parent_id === parentId) are counted; grandchildren
- * and deeper descendants are intentionally excluded to avoid double counting.
- * @param {string} parentId
- * @param {Object[]} estados
- * @returns {number}
- */
-function sumDirectChildrenPopulation(parentId, estados) {
-  return estados
-    .filter(s => s.parent_id === parentId)
-    .reduce((sum, child) => sum + (child.atributos?.populacao || 0), 0);
-}
-
-/**
- * Update the population of a parent estado to the sum of its direct children's populations.
- * @param {string} parentId
- */
-function updatePopulacaoPai(parentId) {
-  const parent = world.estados.find(s => s.id === parentId);
-  if (!parent) return;
-  if (!parent.atributos) parent.atributos = { populacao: 0, forcas_armadas: 1, cultura: 1, moral_populacao: 3 };
-  const total = sumDirectChildrenPopulation(parentId, world.estados);
-  parent.atributos.populacao = total;
-  renderEstadosTable();
-  triggerSave();
-  setStatus(`✅ População de "${parent.nome || parent.id}" atualizada: ${fmtNum(total)}`);
-}
-
 // ── Delete Entity ─────────────────────────────────────────────────────────────
 
 /**
@@ -1755,48 +1655,9 @@ function buildPessoaForm() {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label" for="nef-influencia">Influência</label>
-        <input id="nef-influencia" class="cell-input num" type="number" min="0" max="5" step="1" value="1" />
+        <label class="form-label" for="nef-peso" title="Quantidade agregada de pessoas neste grupo econômico">Peso (qtd. pessoas)</label>
+        <input id="nef-peso" class="cell-input num" type="number" min="1" step="1" value="1" />
       </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-patrimonio">Patrimônio</label>
-        <input id="nef-patrimonio" class="cell-input num" type="number" min="0" step="1" value="1" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-moral">Moral</label>
-        <input id="nef-moral" class="cell-input num" type="number" min="0" max="5" step="1" value="3" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-reputacao">Reputação</label>
-        <input id="nef-reputacao" class="cell-input num" type="number" min="0" max="5" step="1" value="1" />
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label" for="nef-renda">Renda Mensal</label>
-        <input id="nef-renda" class="cell-input num" type="number" min="0" step="100" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-caixa">Caixa</label>
-        <input id="nef-caixa" class="cell-input num" type="number" step="100" value="0" />
-      </div>
-    </div>
-    <p class="form-section-label">Gastos mensais pagos:</p>
-    <div class="form-row">
-      <div class="form-group form-group-inline">
-        <input type="checkbox" id="nef-gasto-infl" checked />
-        <label class="form-label" for="nef-gasto-infl">Influência</label>
-      </div>
-      <div class="form-group form-group-inline">
-        <input type="checkbox" id="nef-gasto-moral" checked />
-        <label class="form-label" for="nef-gasto-moral">Moral</label>
-      </div>
-      <div class="form-group form-group-inline">
-        <input type="checkbox" id="nef-gasto-rep" checked />
-        <label class="form-label" for="nef-gasto-rep">Reputação</label>
-      </div>
-    </div>
-    <div class="form-row">
       <div class="form-group">
         <label class="form-label" for="nef-status-economico-pessoa">Status Econômico</label>
         <select id="nef-status-economico-pessoa" class="cell-input">
@@ -1833,6 +1694,16 @@ function buildEmpresaForm() {
         </select>
       </div>
       <div class="form-group">
+        <label class="form-label" for="nef-setor">Setor Econômico</label>
+        <select id="nef-setor" class="cell-input">
+          <option value="servicos">🏢 Serviços</option>
+          <option value="agricola">🌾 Agrícola</option>
+          <option value="industrial">🏭 Industrial</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label class="form-label" for="nef-infraestrutura">Infraestrutura</label>
         <select id="nef-infraestrutura" class="cell-input">
           <option value="">— nenhuma —</option>
@@ -1858,48 +1729,12 @@ function buildEmpresaForm() {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label" for="nef-patrimonio">Patrimônio</label>
-        <input id="nef-patrimonio" class="cell-input num" type="number" min="0" step="1000" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-funcionarios">Funcionários</label>
-        <input id="nef-funcionarios" class="cell-input num" type="number" min="0" step="1" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-renda">Renda</label>
-        <input id="nef-renda" class="cell-input num" type="number" min="0" step="100" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-producao">Produção</label>
-        <input id="nef-producao" class="cell-input num" type="number" min="0" step="1" value="0" />
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label" for="nef-moral-corp">Moral Corp.</label>
-        <input id="nef-moral-corp" class="cell-input num" type="number" min="0" max="5" step="0.1" value="3" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-rep-corp">Reputação Corp.</label>
-        <input id="nef-rep-corp" class="cell-input num" type="number" min="0" max="5" step="0.1" value="3" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-lucro">Lucro</label>
-        <input id="nef-lucro" class="cell-input num" type="number" step="100" value="0" />
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label" for="nef-salario">Salário/Func.</label>
-        <input id="nef-salario" class="cell-input num" type="number" min="0" step="100" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-manut">Manutenção</label>
-        <input id="nef-manut" class="cell-input num" type="number" min="0" step="100" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-insumos">Insumos</label>
-        <input id="nef-insumos" class="cell-input num" type="number" min="0" step="100" value="0" />
+        <label class="form-label" for="nef-status-economico-empresa">Status Econômico</label>
+        <select id="nef-status-economico-empresa" class="cell-input">
+          <option value="recessao">📉 Recessão</option>
+          <option value="estagnacao" selected>➡ Estagnação</option>
+          <option value="crescimento">📈 Crescimento</option>
+        </select>
       </div>
     </div>`;
 }
@@ -1931,66 +1766,6 @@ function buildEstadoForm() {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label" for="nef-populacao">População</label>
-        <input id="nef-populacao" class="cell-input num" type="number" min="0" step="1000" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-patrimonio">Patrimônio</label>
-        <input id="nef-patrimonio" class="cell-input num" type="number" min="0" step="1000" value="0" />
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label" for="nef-fa">Forças Arm.</label>
-        <input id="nef-fa" class="cell-input num" type="number" min="0" max="5" step="0.1" value="1" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-cultura">Cultura</label>
-        <input id="nef-cultura" class="cell-input num" type="number" min="0" max="5" step="0.1" value="1" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-moral-pop">Moral Pop.</label>
-        <input id="nef-moral-pop" class="cell-input num" type="number" min="0" max="5" step="0.1" value="3" />
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label" for="nef-renda-trib">Renda Tributária</label>
-        <input id="nef-renda-trib" class="cell-input num" type="number" min="0" step="1000" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-ir-pf">IR PF (0–1)</label>
-        <input id="nef-ir-pf" class="cell-input num" type="number" min="0" max="1" step="0.01" value="0.1" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-ir-pj">IR PJ (0–1)</label>
-        <input id="nef-ir-pj" class="cell-input num" type="number" min="0" max="1" step="0.01" value="0.1" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-imp-prod">Imp. Prod. (0–1)</label>
-        <input id="nef-imp-prod" class="cell-input num" type="number" min="0" max="1" step="0.01" value="0.05" />
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label" for="nef-sal-pol">Sal. Políticos</label>
-        <input id="nef-sal-pol" class="cell-input num" type="number" min="0" step="1000" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-incent-emp">Incent. Emp.</label>
-        <input id="nef-incent-emp" class="cell-input num" type="number" min="0" step="1000" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-inv-cultura">Inv. Cultura</label>
-        <input id="nef-inv-cultura" class="cell-input num" type="number" min="0" step="1000" value="0" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="nef-inv-fa">Inv. FA</label>
-        <input id="nef-inv-fa" class="cell-input num" type="number" min="0" step="1000" value="0" />
-      </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
         <label class="form-label" for="nef-status-economico-estado">Status Econômico</label>
         <select id="nef-status-economico-estado" class="cell-input">
           <option value="recessao">📉 Recessão</option>
@@ -2007,23 +1782,6 @@ function bindAddEntityFormEvents(type) {
     const err = validateNewEntityId(idInput.value.trim(), type);
     document.getElementById('nef-id-error').textContent = err || '';
   });
-  if (type === 'pessoa') {
-    const classeEl = document.getElementById('nef-classe');
-    classeEl.addEventListener('change', () => prefillPessoaAtributos(classeEl.value));
-    prefillPessoaAtributos(classeEl.value);
-  }
-}
-
-function prefillPessoaAtributos(classeId) {
-  if (!config) return;
-  const classe = (config.classes.classes || []).find(c => c.id === classeId);
-  if (!classe || !classe.limites_atributos) return;
-  const lim = classe.limites_atributos;
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-  set('nef-influencia', lim.influencia ? lim.influencia.min : 1);
-  set('nef-patrimonio', lim.patrimonio ? lim.patrimonio.min : 1);
-  set('nef-moral',      lim.moral      ? lim.moral.min      : 3);
-  set('nef-reputacao',  lim.reputacao  ? lim.reputacao.min  : 1);
 }
 
 function saveNewEntity() {
@@ -2044,26 +1802,23 @@ function saveNewEntity() {
   }
 
   if (type === 'pessoa') {
-    const patrimonio = parseFloat(document.getElementById('nef-patrimonio').value) || 1;
+    const peso = Math.max(1, Math.round(parseFloat(document.getElementById('nef-peso').value) || 1));
     world.pessoas.push({
       id,
       nome,
-      classe:    document.getElementById('nef-classe').value,
-      estado_id: document.getElementById('nef-estado').value,
+      classe:           document.getElementById('nef-classe').value,
+      estado_id:        document.getElementById('nef-estado').value,
+      peso,
       status_economico: document.getElementById('nef-status-economico-pessoa').value || 'estagnacao',
       atributos: {
-        influencia: parseFloat(document.getElementById('nef-influencia').value) || 1,
-        patrimonio,
-        moral:      parseFloat(document.getElementById('nef-moral').value)      || 3,
-        reputacao:  parseFloat(document.getElementById('nef-reputacao').value)  || 1,
+        influencia: 1,
+        patrimonio: 0,
+        moral:      3,
+        reputacao:  1,
       },
-      renda_mensal: parseFloat(document.getElementById('nef-renda').value)  || 0,
-      caixa:        parseFloat(document.getElementById('nef-caixa').value)  || 0,
-      gastos_mensais_pagos: {
-        influencia: document.getElementById('nef-gasto-infl').checked,
-        moral:      document.getElementById('nef-gasto-moral').checked,
-        reputacao:  document.getElementById('nef-gasto-rep').checked,
-      },
+      renda_mensal: 0,
+      caixa:        0,
+      gastos_mensais_pagos: { influencia: false, moral: false, reputacao: false },
       nota_scouting:     0,
       valor_mercado:     0,
       posicao:           '',
@@ -2071,35 +1826,34 @@ function saveNewEntity() {
       clube_emprestador: '',
       tick_registro:     getCurrentTick(),
       tick_saida:        0,
-      ativos: { patrimonio_geral: patrimonio },
+      fornecedores_ids:  [],
+      ativos:            {},
     });
     renderPessoasTable();
   } else if (type === 'empresa') {
-    const patrimonio = parseFloat(document.getElementById('nef-patrimonio').value) || 0;
     world.empresas.push({
       id,
       nome,
-      dono_id:        document.getElementById('nef-dono').value,
-      estado_id:      document.getElementById('nef-estado').value,
-      segmento:       document.getElementById('nef-segmento').value || 'POP_NAO_DURAVEL',
-      infraestrutura: document.getElementById('nef-infraestrutura').value || '',
-      patrimonio,
+      dono_id:          document.getElementById('nef-dono').value,
+      estado_id:        document.getElementById('nef-estado').value,
+      segmento:         document.getElementById('nef-segmento').value || 'POP_NAO_DURAVEL',
+      setor_economico:  document.getElementById('nef-setor').value   || 'servicos',
+      infraestrutura:   document.getElementById('nef-infraestrutura').value || '',
+      status_economico: document.getElementById('nef-status-economico-empresa').value || 'estagnacao',
+      patrimonio: 0,
       atributos: {
-        funcionarios:          parseFloat(document.getElementById('nef-funcionarios').value) || 0,
-        renda:                 parseFloat(document.getElementById('nef-renda').value)        || 0,
-        producao:              parseFloat(document.getElementById('nef-producao').value)     || 0,
-        moral_corporativa:     parseFloat(document.getElementById('nef-moral-corp').value)  || 3,
-        reputacao_corporativa: parseFloat(document.getElementById('nef-rep-corp').value)    || 3,
-        lucro:                 parseFloat(document.getElementById('nef-lucro').value)        || 0,
+        funcionarios:          0,
+        renda:                 0,
+        producao:              0,
+        moral_corporativa:     3,
+        reputacao_corporativa: 3,
+        lucro:                 0,
       },
-      custos: {
-        salario_funcionario: parseFloat(document.getElementById('nef-salario').value) || 0,
-        manutencao:          parseFloat(document.getElementById('nef-manut').value)   || 0,
-        insumos:             parseFloat(document.getElementById('nef-insumos').value) || 0,
-      },
-      tick_registro: getCurrentTick(),
-      tick_saida:    0,
-      ativos: { patrimonio_geral: patrimonio },
+      custos: { salario_funcionario: 0, manutencao: 0, insumos: 0 },
+      tick_registro:    getCurrentTick(),
+      tick_saida:       0,
+      fornecedores_ids: [],
+      ativos:           {},
     });
     renderEmpresasTable();
   } else if (type === 'estado') {
@@ -2113,36 +1867,33 @@ function saveNewEntity() {
     if (parentId && !estadoIds.has(parentId)) {
       setStatus(`⚠ parent_id "${parentId}" não encontrado entre os estados carregados.`);
     }
-    const patrimonio = parseFloat(document.getElementById('nef-patrimonio').value) || 0;
     world.estados.push({
       id,
       nome,
-      tipo:      document.getElementById('nef-tipo').value.trim(),
-      parent_id: parentId,
-      descricao: document.getElementById('nef-descricao').value.trim(),
+      tipo:             document.getElementById('nef-tipo').value.trim(),
+      parent_id:        parentId,
+      descricao:        document.getElementById('nef-descricao').value.trim(),
       status_economico: document.getElementById('nef-status-economico-estado').value || 'estagnacao',
-      patrimonio,
+      patrimonio: 0,
       atributos: {
-        populacao:       parseFloat(document.getElementById('nef-populacao').value)  || 0,
-        forcas_armadas:  parseFloat(document.getElementById('nef-fa').value)         || 1,
-        cultura:         parseFloat(document.getElementById('nef-cultura').value)    || 1,
-        moral_populacao: parseFloat(document.getElementById('nef-moral-pop').value)  || 3,
+        populacao:       0,
+        forcas_armadas:  1,
+        cultura:         1,
+        moral_populacao: 3,
       },
-      impostos: {
-        ir_pf:    parseFloat(document.getElementById('nef-ir-pf').value)    || 0,
-        ir_pj:    parseFloat(document.getElementById('nef-ir-pj').value)    || 0,
-        imp_prod: parseFloat(document.getElementById('nef-imp-prod').value) || 0,
-      },
+      impostos: { ir_pf: 0, ir_pj: 0, imp_prod: 0 },
       financas: {
-        renda_tributaria:     parseFloat(document.getElementById('nef-renda-trib').value)   || 0,
-        salarios_politicos:   parseFloat(document.getElementById('nef-sal-pol').value)      || 0,
-        incentivos_empresas:  parseFloat(document.getElementById('nef-incent-emp').value)   || 0,
-        investimento_cultura: parseFloat(document.getElementById('nef-inv-cultura').value)  || 0,
-        investimento_fa:      parseFloat(document.getElementById('nef-inv-fa').value)       || 0,
+        renda_tributaria:     0,
+        salarios_politicos:   0,
+        incentivos_empresas:  0,
+        investimento_cultura: 0,
+        investimento_fa:      0,
       },
-      ativos: { patrimonio_geral: patrimonio },
-      tick_registro: getCurrentTick(),
-      tick_saida:    0,
+      infraestrutura: {},
+      fornecedores_ids: [],
+      ativos:           {},
+      tick_registro:    getCurrentTick(),
+      tick_saida:       0,
     });
     renderEstadosTable();
   }
@@ -2793,7 +2544,7 @@ document.getElementById('btn-run-sim')?.addEventListener('click', () => {
     return;
   }
 
-  const population    = estado.atributos?.populacao ?? 0;
+  const population    = calcPopulacaoEstado(stateId, world.pessoas);
   const economicState = document.getElementById('sim-econ-state')?.value ?? 'estavel';
   const steps         = parseInt(document.getElementById('sim-steps')?.value ?? '60', 10) || 60;
   const k             = parseFloat(document.getElementById('sim-k')?.value ?? '1000') || 1000;
