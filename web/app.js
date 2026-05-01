@@ -437,7 +437,7 @@ function statusEconomicoSelect(entity, i, current) {
 function calcPopulacaoEstado(estadoId, pessoas) {
   return pessoas
     .filter(p => p.estado_id === estadoId && !p.tick_saida)
-    .reduce((sum, p) => sum + (p.peso || 1), 0);
+    .reduce((sum, p) => sum + Math.max(1, p.peso || 1), 0);
 }
 
 /**
