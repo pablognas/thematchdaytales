@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS estados (
   infra_onibus_municipais INTEGER DEFAULT 0,
   infra_centro_comercial  INTEGER DEFAULT 0,
   tick_registro        INTEGER DEFAULT 0,
-  tick_saida           INTEGER DEFAULT 0
+  tick_saida           INTEGER DEFAULT 0,
+  status_economico     TEXT DEFAULT 'estagnacao'
 );
 CREATE TABLE IF NOT EXISTS empresas (
   id                    TEXT PRIMARY KEY,
@@ -107,7 +108,8 @@ CREATE TABLE IF NOT EXISTS pessoas (
   clube             TEXT DEFAULT '',
   clube_emprestador TEXT DEFAULT '',
   tick_registro     INTEGER DEFAULT 0,
-  tick_saida        INTEGER DEFAULT 0
+  tick_saida        INTEGER DEFAULT 0,
+  status_economico  TEXT DEFAULT 'estagnacao'
 );
 CREATE TABLE IF NOT EXISTS ativos (
   owner_type TEXT NOT NULL,
@@ -165,6 +167,23 @@ async function loadSqlJs() {
 function runMigrations(db) {
   db.run(SCHEMA_SQL);
   db.run(`INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', ?)`, [String(DB_VERSION)]);
+
+  // Add new columns to existing tables (safe to run even if column already exists — caught and ignored).
+  // Only alphanumeric + underscore names are accepted to prevent SQL injection via table/col names.
+  const SAFE_NAME = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+  const addColIfMissing = (table, col, def) => {
+    if (!SAFE_NAME.test(table) || !SAFE_NAME.test(col)) {
+      throw new Error(`Unsafe table or column name: ${table}.${col}`);
+    }
+    try {
+      db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+    } catch (_) { /* column already exists */ }
+  };
+
+  addColIfMissing('pessoas',  'status_economico', "TEXT DEFAULT 'estagnacao'");
+  addColIfMissing('empresas', 'status_economico', "TEXT DEFAULT 'estagnacao'");
+  addColIfMissing('empresas', 'setor_economico',  "TEXT DEFAULT 'servicos'");
+  addColIfMissing('estados',  'status_economico', "TEXT DEFAULT 'estagnacao'");
 }
 
 // ── Singleton DB accessor ─────────────────────────────────────────────────────
@@ -237,6 +256,7 @@ const PESSOAS_COLS = [
   'nota_scouting', 'valor_mercado',
   'posicao', 'clube', 'clube_emprestador',
   'tick_registro', 'tick_saida',
+  'status_economico',
 ];
 
 const EMPRESAS_COLS = [
@@ -256,6 +276,7 @@ const ESTADOS_COLS = [
   'infra_universidade', 'infra_rodoviaria', 'infra_aeroporto', 'infra_porto',
   'infra_estacao_trem', 'infra_metro', 'infra_onibus_municipais', 'infra_centro_comercial',
   'tick_registro', 'tick_saida',
+  'status_economico',
 ];
 
 const ATIVOS_COLS = ['owner_type', 'owner_id', 'ativo_id', 'valor'];

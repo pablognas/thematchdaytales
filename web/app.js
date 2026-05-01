@@ -45,7 +45,7 @@ import {
   SCOUTS_ATAQUE, SCOUTS_DEFESA,
   calcMatchScore, calcNewAverage, calcNewMarketValue,
 } from '../src/core/scouts.js';
-import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEGMENTO_DEMAND_PARAMS } from '../src/core/economy.js';
+import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEGMENTO_DEMAND_PARAMS, STATUS_ECONOMICO, SETOR_ECONOMICO } from '../src/core/economy.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
@@ -408,6 +408,38 @@ document.addEventListener('click', e => {
 });
 
 // ── Pessoas table ────────────────────────────────────────────────────────────
+
+/**
+ * Build a <select> for status_economico for a given entity/index/value.
+ * @param {string} entity  data-entity attribute value
+ * @param {number} i       row index
+ * @param {string} current current status_economico value (may be falsy → defaults to 'estagnacao')
+ * @returns {string} HTML
+ */
+function statusEconomicoSelect(entity, i, current) {
+  const v = current || 'estagnacao';
+  return `<select class="cell-input" data-entity="${esc(entity)}" data-idx="${i}" data-field="status_economico" style="min-width:110px">
+    <option value="recessao"${v === 'recessao' ? ' selected' : ''}>📉 Recessão</option>
+    <option value="estagnacao"${v === 'estagnacao' ? ' selected' : ''}>➡ Estagnação</option>
+    <option value="crescimento"${v === 'crescimento' ? ' selected' : ''}>📈 Crescimento</option>
+  </select>`;
+}
+
+/**
+ * Build a <select> for setor_economico for a given empresa entity/index/value.
+ * @param {number} i       row index
+ * @param {string} current current setor_economico value (may be falsy → defaults to 'servicos')
+ * @returns {string} HTML
+ */
+function setorEconomicoSelect(i, current) {
+  const v = current || 'servicos';
+  return `<select class="cell-input" data-entity="empresa" data-idx="${i}" data-field="setor_economico" style="min-width:110px">
+    <option value="agricola"${v === 'agricola' ? ' selected' : ''}>🌾 Agrícola</option>
+    <option value="industrial"${v === 'industrial' ? ' selected' : ''}>🏭 Industrial</option>
+    <option value="servicos"${v === 'servicos' ? ' selected' : ''}>🏢 Serviços</option>
+  </select>`;
+}
+
 function renderPessoasTable() {
   const container = document.getElementById('table-pessoas');
   const p = world.pessoas;
@@ -431,6 +463,7 @@ function renderPessoasTable() {
       <th>ID</th>
       ${sortHeader('Nome', 'nome', 'pessoas')}
       <th>Classe</th><th>Estado</th>
+      <th>Status Econ.</th>
       <th>Influência</th>
       ${sortHeader('Patrimônio', 'patrimonio', 'pessoas')}
       <th>Moral</th><th>Reputação</th>
@@ -456,6 +489,7 @@ function renderPessoasTable() {
         </select>
       </td>
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="estado_id" value="${esc(pessoa.estado_id)}" style="width:90px" /></td>
+      <td>${statusEconomicoSelect('pessoa', i, pessoa.status_economico)}</td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.influencia" value="${pessoa.atributos.influencia}" style="width:55px" /></td>
       <td class="num">${fmtNum(pessoa.atributos.patrimonio)}</td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.moral" value="${pessoa.atributos.moral}" style="width:55px" /></td>
@@ -598,6 +632,7 @@ function renderEstadosTable() {
       <th>ID</th>
       ${sortHeader('Nome', 'nome', 'estados')}
       <th>Tipo</th><th>Parent</th><th>Descrição</th>
+      <th>Status Econ.</th>
       ${sortHeader('Patrimônio', 'patrimonio', 'estados')}
       <th>Populacão</th><th>Forças Arm.</th><th>Cultura</th><th>Moral Pop.</th>
       <th>Renda Trib.</th><th>IR PF</th><th>IR PJ</th><th>Imp. Prod.</th>
@@ -628,6 +663,7 @@ function renderEstadosTable() {
         ${parentOpts}
       </select></td>
       <td><input class="cell-input" data-entity="estado" data-idx="${i}" data-field="descricao" value="${esc(est.descricao || '')}" style="width:160px" /></td>
+      <td>${statusEconomicoSelect('estado', i, est.status_economico)}</td>
       <td class="num">${fmtNum(Math.round(est.patrimonio || 0))}</td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="atributos.populacao" value="${est.atributos.populacao}" style="width:110px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="0.1" data-entity="estado" data-idx="${i}" data-field="atributos.forcas_armadas" value="${est.atributos.forcas_armadas}" style="width:60px" /></td>
@@ -743,6 +779,8 @@ const FIELD_SETTERS = {
   // Shared text
   nome:      (e, v) => { e.nome      = v; },
   estado_id: (e, v) => { e.estado_id = v; },
+  // Economic status (pessoa, empresa, estado)
+  status_economico: (e, v) => { e.status_economico = v; },
   // Pessoa top-level text
   classe:    (e, v) => { e.classe    = v; },
   // Pessoa atributos
@@ -1755,6 +1793,16 @@ function buildPessoaForm() {
         <input type="checkbox" id="nef-gasto-rep" checked />
         <label class="form-label" for="nef-gasto-rep">Reputação</label>
       </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-status-economico-pessoa">Status Econômico</label>
+        <select id="nef-status-economico-pessoa" class="cell-input">
+          <option value="recessao">📉 Recessão</option>
+          <option value="estagnacao" selected>➡ Estagnação</option>
+          <option value="crescimento">📈 Crescimento</option>
+        </select>
+      </div>
     </div>`;
 }
 
@@ -1938,6 +1986,16 @@ function buildEstadoForm() {
         <label class="form-label" for="nef-inv-fa">Inv. FA</label>
         <input id="nef-inv-fa" class="cell-input num" type="number" min="0" step="1000" value="0" />
       </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-status-economico-estado">Status Econômico</label>
+        <select id="nef-status-economico-estado" class="cell-input">
+          <option value="recessao">📉 Recessão</option>
+          <option value="estagnacao" selected>➡ Estagnação</option>
+          <option value="crescimento">📈 Crescimento</option>
+        </select>
+      </div>
     </div>`;
 }
 
@@ -1990,6 +2048,7 @@ function saveNewEntity() {
       nome,
       classe:    document.getElementById('nef-classe').value,
       estado_id: document.getElementById('nef-estado').value,
+      status_economico: document.getElementById('nef-status-economico-pessoa').value || 'estagnacao',
       atributos: {
         influencia: parseFloat(document.getElementById('nef-influencia').value) || 1,
         patrimonio,
@@ -2059,6 +2118,7 @@ function saveNewEntity() {
       tipo:      document.getElementById('nef-tipo').value.trim(),
       parent_id: parentId,
       descricao: document.getElementById('nef-descricao').value.trim(),
+      status_economico: document.getElementById('nef-status-economico-estado').value || 'estagnacao',
       patrimonio,
       atributos: {
         populacao:       parseFloat(document.getElementById('nef-populacao').value)  || 0,

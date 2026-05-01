@@ -89,6 +89,7 @@ export function rowsToPessoas(rows) {
       clube_emprestador: r.clube_emprestador || '',
       tick_registro:     toNum(r.tick_registro, 0),
       tick_saida:        toNum(r.tick_saida,    0),
+      status_economico:  r.status_economico  || 'estagnacao',
       // Default ativos: single entry matching patrimonio
       ativos: { patrimonio_geral: patrimonio },
     };
@@ -123,6 +124,7 @@ export function pessoasToRows(pessoas) {
     clube_emprestador: p.clube_emprestador || '',
     tick_registro:     p.tick_registro     || 0,
     tick_saida:        p.tick_saida        || 0,
+    status_economico:  p.status_economico  || 'estagnacao',
   }));
 }
 
@@ -160,6 +162,7 @@ export function rowsToEmpresas(rows) {
       },
       tick_registro: toNum(r.tick_registro, 0),
       tick_saida:    toNum(r.tick_saida,    0),
+      status_economico: r.status_economico || 'estagnacao',
       ativos: { patrimonio_geral: patrimonio },
     };
   });
@@ -245,6 +248,7 @@ export function rowsToEstados(rows) {
       },
       tick_registro: toNum(r.tick_registro, 0),
       tick_saida:    toNum(r.tick_saida,    0),
+      status_economico: r.status_economico || 'estagnacao',
       ativos: { patrimonio_geral: patrimonio },
     };
   });
@@ -289,6 +293,7 @@ export function estadosToRows(estados) {
     infra_centro_comercial:  s.infraestrutura?.centro_comercial  ? 1 : 0,
     tick_registro:        s.tick_registro || 0,
     tick_saida:           s.tick_saida    || 0,
+    status_economico:     s.status_economico || 'estagnacao',
   }));
 }
 

@@ -1,5 +1,5 @@
-id,nome,tipo,parent_id,descricao,patrimonio,populacao,forcas_armadas,cultura,moral_populacao,renda_tributaria,ir_pf,ir_pj,imp_prod,salarios_politicos,incentivos_empresas,investimento_cultura,investimento_fa
-brasil,Brasil,pais,,República Federativa do Brasil,50000000,210000000,5,4,3,50000000,0.15,0.20,0.10,200000,500000,200000,500000
-estado_sp,São Paulo,estado,brasil,Unidade federativa de São Paulo,10000000,45000000,3,4,3,5000000,0.15,0.20,0.10,50000,100000,50000,100000
-estado_rj,Rio de Janeiro,estado,brasil,Unidade federativa do Rio de Janeiro,3000000,17000000,2,5,2,2500000,0.15,0.20,0.10,30000,50000,80000,40000
-sp_capital,São Paulo (Capital),municipio,estado_sp,Município capital do estado de São Paulo,2000000,12000000,2,5,3,1000000,0.05,0.10,0.03,20000,30000,30000,10000
+id,nome,tipo,parent_id,descricao,patrimonio,populacao,forcas_armadas,cultura,moral_populacao,renda_tributaria,ir_pf,ir_pj,imp_prod,salarios_politicos,incentivos_empresas,investimento_cultura,investimento_fa,status_economico
+brasil,Brasil,pais,,República Federativa do Brasil,50000000,210000000,5,4,3,50000000,0.15,0.20,0.10,200000,500000,200000,500000,estagnacao
+estado_sp,São Paulo,estado,brasil,Unidade federativa de São Paulo,10000000,45000000,3,4,3,5000000,0.15,0.20,0.10,50000,100000,50000,100000,crescimento
+estado_rj,Rio de Janeiro,estado,brasil,Unidade federativa do Rio de Janeiro,3000000,17000000,2,5,2,2500000,0.15,0.20,0.10,30000,50000,80000,40000,estagnacao
+sp_capital,São Paulo (Capital),municipio,estado_sp,Município capital do estado de São Paulo,2000000,12000000,2,5,3,1000000,0.05,0.10,0.03,20000,30000,30000,10000,crescimento
