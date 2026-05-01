@@ -20,6 +20,7 @@ import {
   rowsToPessoas,  pessoasToRows,
   rowsToEmpresas, empresasToRows,
   rowsToEstados,  estadosToRows,
+  rowsToClubes,   clubesToRows,
   worldAtivosToRows, reconcilePatrimonio,
   INFRAESTRUTURA_TIPOS, INFRAESTRUTURA_LABEL,
   recomputeEstadoInfrastrutura,
@@ -48,7 +49,7 @@ import {
 import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEGMENTO_DEMAND_PARAMS, STATUS_ECONOMICO, SETOR_ECONOMICO } from '../src/core/economy.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
-let world  = { pessoas: [], empresas: [], estados: [] };
+let world  = { pessoas: [], empresas: [], estados: [], clubes: [], mapa: {} };
 let config = null;
 let db     = null;   // sql.js Database singleton (set in initApp)
 
@@ -211,11 +212,12 @@ function readFile(file) {
 // ── SQLite persistence helper ───────────────────────────────────────────────
 /**
  * Write current world to SQLite and schedule a debounced IndexedDB persist.
- * Call this after any mutation to world.pessoas / empresas / estados.
+ * Call this after any mutation to world.pessoas / empresas / estados / clubes / mapa.
  */
 function triggerSave() {
   if (!db) return;
   recomputeEstadoInfrastrutura(world);
+  world.mapa = mapaWorld;  // keep world.mapa in sync with the mapa editor state
   saveWorldToDb(db, world);
   scheduleAutoSave(db);
 }
@@ -2452,7 +2454,9 @@ document.getElementById('file-mapa').addEventListener('change', async e => {
              !Number.isInteger(lon) || lon < -180 || lon > 180;
     }).length;
     mapaWorld = rowsToMapa(rows);
+    world.mapa = mapaWorld;  // keep world.mapa in sync
     const imported = rows.length - ignored;
+    triggerSave();
     renderMapaGrid();
     setStatus(`Mapa carregado: ${file.name} — ${imported} células importadas${ignored ? `, ${ignored} ignoradas` : ''}.`);
   } catch (err) {
@@ -2544,6 +2548,7 @@ document.getElementById('mapa-edit-save').addEventListener('click', () => {
     clima:     document.getElementById('mapa-edit-clima').value,
   });
   updateCellElement(lat, lon);
+  triggerSave();
   setStatus(`Célula (${lat}, ${lon}) atualizada.`);
 });
 
@@ -2556,6 +2561,7 @@ document.getElementById('mapa-edit-clear').addEventListener('click', () => {
   document.getElementById('mapa-edit-estado').value  = '';
   document.getElementById('mapa-edit-bioma').value   = '';
   document.getElementById('mapa-edit-clima').value   = '';
+  triggerSave();
   setStatus(`Célula (${lat}, ${lon}) limpa.`);
 });
 
@@ -2832,6 +2838,10 @@ async function initApp() {
   try {
     db    = await getDb();
     world = loadWorldFromDb(db);
+    // Sync mapa editor state from the persisted world map
+    if (world.mapa && Object.keys(world.mapa).length > 0) {
+      mapaWorld = world.mapa;
+    }
     renderAll();
     setStatus(
       world.pessoas.length || world.empresas.length || world.estados.length

@@ -20,8 +20,10 @@ import {
   rowsToPessoas,  pessoasToRows,
   rowsToEmpresas, empresasToRows,
   rowsToEstados,  estadosToRows,
+  rowsToClubes,   clubesToRows,
   applyAtivos,    worldAtivosToRows,
 } from './world.js';
+import { rowsToMapa, mapaToRows } from './map.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -66,7 +68,8 @@ CREATE TABLE IF NOT EXISTS estados (
   infra_centro_comercial  INTEGER DEFAULT 0,
   tick_registro        INTEGER DEFAULT 0,
   tick_saida           INTEGER DEFAULT 0,
-  status_economico     TEXT DEFAULT 'estagnacao'
+  status_economico     TEXT DEFAULT 'estagnacao',
+  fornecedores_ids     TEXT DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS empresas (
   id                    TEXT PRIMARY KEY,
@@ -86,13 +89,38 @@ CREATE TABLE IF NOT EXISTS empresas (
   manutencao            REAL DEFAULT 0,
   insumos               REAL DEFAULT 0,
   tick_registro         INTEGER DEFAULT 0,
-  tick_saida            INTEGER DEFAULT 0
+  tick_saida            INTEGER DEFAULT 0,
+  status_economico      TEXT DEFAULT 'estagnacao',
+  fornecedores_ids      TEXT DEFAULT '[]'
+);
+CREATE TABLE IF NOT EXISTS clubes (
+  id                      TEXT PRIMARY KEY,
+  nome                    TEXT NOT NULL DEFAULT '',
+  dono_id                 TEXT DEFAULT '',
+  estado_id               TEXT DEFAULT '',
+  patrimonio              REAL DEFAULT 0,
+  receita_bilheteria      REAL DEFAULT 0,
+  receita_tv              REAL DEFAULT 0,
+  receita_patrocinios     REAL DEFAULT 0,
+  receita_transferencias  REAL DEFAULT 0,
+  folha_salarial          REAL DEFAULT 0,
+  custo_infraestrutura    REAL DEFAULT 0,
+  custo_contratacoes      REAL DEFAULT 0,
+  saldo                   REAL DEFAULT 0,
+  torcida                 REAL DEFAULT 0,
+  reputacao               REAL DEFAULT 3,
+  instalacoes             REAL DEFAULT 3,
+  tick_registro           INTEGER DEFAULT 0,
+  tick_saida              INTEGER DEFAULT 0,
+  status_economico        TEXT DEFAULT 'estagnacao',
+  fornecedores_ids        TEXT DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS pessoas (
   id                TEXT PRIMARY KEY,
   nome              TEXT NOT NULL DEFAULT '',
   classe            TEXT DEFAULT '',
   estado_id         TEXT DEFAULT '',
+  peso              INTEGER DEFAULT 1,
   influencia        REAL DEFAULT 1,
   patrimonio        REAL DEFAULT 1,
   moral             REAL DEFAULT 3,
@@ -109,7 +137,8 @@ CREATE TABLE IF NOT EXISTS pessoas (
   clube_emprestador TEXT DEFAULT '',
   tick_registro     INTEGER DEFAULT 0,
   tick_saida        INTEGER DEFAULT 0,
-  status_economico  TEXT DEFAULT 'estagnacao'
+  status_economico  TEXT DEFAULT 'estagnacao',
+  fornecedores_ids  TEXT DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS ativos (
   owner_type TEXT NOT NULL,
@@ -117,6 +146,15 @@ CREATE TABLE IF NOT EXISTS ativos (
   ativo_id   TEXT NOT NULL,
   valor      REAL DEFAULT 0,
   PRIMARY KEY (owner_type, owner_id, ativo_id)
+);
+CREATE TABLE IF NOT EXISTS mapa (
+  lat      INTEGER NOT NULL,
+  lon      INTEGER NOT NULL,
+  tipo     TEXT DEFAULT 'agua',
+  estado_id TEXT DEFAULT '',
+  bioma    TEXT DEFAULT '',
+  clima    TEXT DEFAULT '',
+  PRIMARY KEY (lat, lon)
 );
 `;
 
@@ -184,6 +222,10 @@ function runMigrations(db) {
   addColIfMissing('empresas', 'status_economico', "TEXT DEFAULT 'estagnacao'");
   addColIfMissing('empresas', 'setor_economico',  "TEXT DEFAULT 'servicos'");
   addColIfMissing('estados',  'status_economico', "TEXT DEFAULT 'estagnacao'");
+  addColIfMissing('pessoas',  'peso',             'INTEGER DEFAULT 1');
+  addColIfMissing('pessoas',  'fornecedores_ids', "TEXT DEFAULT '[]'");
+  addColIfMissing('empresas', 'fornecedores_ids', "TEXT DEFAULT '[]'");
+  addColIfMissing('estados',  'fornecedores_ids', "TEXT DEFAULT '[]'");
 }
 
 // ── Singleton DB accessor ─────────────────────────────────────────────────────
@@ -250,6 +292,7 @@ function insertRows(db, table, columns, rows) {
 
 const PESSOAS_COLS = [
   'id', 'nome', 'classe', 'estado_id',
+  'peso',
   'influencia', 'patrimonio', 'moral', 'reputacao',
   'renda_mensal', 'caixa',
   'gastos_influencia', 'gastos_moral', 'gastos_reputacao',
@@ -257,6 +300,7 @@ const PESSOAS_COLS = [
   'posicao', 'clube', 'clube_emprestador',
   'tick_registro', 'tick_saida',
   'status_economico',
+  'fornecedores_ids',
 ];
 
 const EMPRESAS_COLS = [
@@ -265,6 +309,19 @@ const EMPRESAS_COLS = [
   'moral_corporativa', 'reputacao_corporativa', 'lucro',
   'salario_funcionario', 'manutencao', 'insumos',
   'tick_registro', 'tick_saida',
+  'status_economico',
+  'fornecedores_ids',
+];
+
+const CLUBES_COLS = [
+  'id', 'nome', 'dono_id', 'estado_id',
+  'patrimonio',
+  'receita_bilheteria', 'receita_tv', 'receita_patrocinios', 'receita_transferencias',
+  'folha_salarial', 'custo_infraestrutura', 'custo_contratacoes', 'saldo',
+  'torcida', 'reputacao', 'instalacoes',
+  'tick_registro', 'tick_saida',
+  'status_economico',
+  'fornecedores_ids',
 ];
 
 const ESTADOS_COLS = [
@@ -277,22 +334,27 @@ const ESTADOS_COLS = [
   'infra_estacao_trem', 'infra_metro', 'infra_onibus_municipais', 'infra_centro_comercial',
   'tick_registro', 'tick_saida',
   'status_economico',
+  'fornecedores_ids',
 ];
 
 const ATIVOS_COLS = ['owner_type', 'owner_id', 'ativo_id', 'valor'];
+
+const MAPA_COLS = ['lat', 'lon', 'tipo', 'estado_id', 'bioma', 'clima'];
 
 // ── World ↔ DB ────────────────────────────────────────────────────────────────
 
 /**
  * Load all world entities from the SQLite database.
  * @param {import('sql.js').Database} db
- * @returns {{ pessoas: Object[], empresas: Object[], estados: Object[] }}
+ * @returns {{ pessoas: Object[], empresas: Object[], estados: Object[], clubes: Object[], mapa: Object }}
  */
 export function loadWorldFromDb(db) {
   const pessoas  = rowsToPessoas( sqlToRows(db.exec('SELECT * FROM pessoas')));
   const empresas = rowsToEmpresas(sqlToRows(db.exec('SELECT * FROM empresas')));
   const estados  = rowsToEstados( sqlToRows(db.exec('SELECT * FROM estados')));
-  const world    = { pessoas, empresas, estados };
+  const clubes   = rowsToClubes(  sqlToRows(db.exec('SELECT * FROM clubes')));
+  const mapa     = rowsToMapa(    sqlToRows(db.exec('SELECT * FROM mapa')));
+  const world    = { pessoas, empresas, estados, clubes, mapa };
 
   const ativosRows = sqlToRows(db.exec('SELECT * FROM ativos'));
   if (ativosRows.length) applyAtivos(world, ativosRows);
@@ -304,7 +366,7 @@ export function loadWorldFromDb(db) {
  * Persist all world entities to the SQLite database (synchronous, in a transaction).
  * Replaces all existing rows in the entity tables.
  * @param {import('sql.js').Database} db
- * @param {{ pessoas: Object[], empresas: Object[], estados: Object[] }} world
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[], clubes?: Object[], mapa?: Object }} world
  */
 export function saveWorldToDb(db, world) {
   db.run('BEGIN TRANSACTION');
@@ -312,12 +374,16 @@ export function saveWorldToDb(db, world) {
     db.run('DELETE FROM pessoas');
     db.run('DELETE FROM empresas');
     db.run('DELETE FROM estados');
+    db.run('DELETE FROM clubes');
     db.run('DELETE FROM ativos');
+    db.run('DELETE FROM mapa');
 
     insertRows(db, 'pessoas',  PESSOAS_COLS,  pessoasToRows(world.pessoas));
     insertRows(db, 'empresas', EMPRESAS_COLS, empresasToRows(world.empresas));
     insertRows(db, 'estados',  ESTADOS_COLS,  estadosToRows(world.estados));
+    insertRows(db, 'clubes',   CLUBES_COLS,   clubesToRows(world.clubes || []));
     insertRows(db, 'ativos',   ATIVOS_COLS,   worldAtivosToRows(world));
+    insertRows(db, 'mapa',     MAPA_COLS,     mapaToRows(world.mapa || {}));
 
     db.run('COMMIT');
   } catch (err) {

@@ -1,5 +1,5 @@
-id,nome,classe,estado_id,influencia,patrimonio,moral,reputacao,renda_mensal,caixa,gastos_influencia,gastos_moral,gastos_reputacao,nota_scouting,valor_mercado,posicao,clube,clube_emprestador,status_economico
-neymar_exemplo,Neymar Jr,jogador,estado_sp,4,5,3,4,5000000,2000000,1,1,1,9.2,150000000,atacante,empresa_01,,estagnacao
-trabalhador_01,João Silva,trabalhador,estado_sp,1,1,3,2,3000,500,1,1,1,0,0,,,,estagnacao
-politico_01,Maria Souza,politico,estado_rj,4,2,2,3,20000,1000,1,1,1,0,0,,,,estagnacao
-empresario_01,Carlos Lima,empresario,estado_sp,3,4,3,3,80000,50000,1,1,1,0,0,,,,crescimento
+id,nome,classe,estado_id,peso,influencia,patrimonio,moral,reputacao,renda_mensal,caixa,gastos_influencia,gastos_moral,gastos_reputacao,nota_scouting,valor_mercado,posicao,clube,clube_emprestador,status_economico,fornecedores_ids
+neymar_exemplo,Neymar Jr,jogador,estado_sp,1,4,5,3,4,5000000,2000000,1,1,1,9.2,150000000,atacante,empresa_01,,estagnacao,[]
+trabalhador_01,João Silva,trabalhador,estado_sp,1,1,1,3,2,3000,500,1,1,1,0,0,,,,estagnacao,[]
+politico_01,Maria Souza,politico,estado_rj,1,4,2,2,3,20000,1000,1,1,1,0,0,,,,estagnacao,[]
+empresario_01,Carlos Lima,empresario,estado_sp,1,3,4,3,3,80000,50000,1,1,1,0,0,,,,crescimento,[]

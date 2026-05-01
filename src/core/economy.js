@@ -540,3 +540,222 @@ export function simulateEconomyBySegment({
     segments: segSeries,
   };
 }
+
+// ── Status-economico transition helpers ───────────────────────────────────────
+
+/**
+ * Map a status_economico string to a numeric score.
+ *   recessao   → -1
+ *   estagnacao →  0
+ *   crescimento → +1
+ * @param {string} status
+ * @returns {number}
+ */
+export function statusToScore(status) {
+  if (status === STATUS_ECONOMICO.CRESCIMENTO) return 1;
+  if (status === STATUS_ECONOMICO.RECESSAO)    return -1;
+  return 0; // estagnacao or unknown
+}
+
+/**
+ * Map a numeric score to the nearest status_economico string.
+ *   score < -0.33 → 'recessao'
+ *   score > +0.33 → 'crescimento'
+ *   otherwise     → 'estagnacao'
+ * @param {number} score
+ * @returns {string}
+ */
+export function scoreToStatus(score) {
+  if (score > 0.33)  return STATUS_ECONOMICO.CRESCIMENTO;
+  if (score < -0.33) return STATUS_ECONOMICO.RECESSAO;
+  return STATUS_ECONOMICO.ESTAGNACAO;
+}
+
+/**
+ * Compute the new status_economico for an entity based on a weighted combination
+ * of contextual statuses and a stochastic nudge.
+ *
+ * The new score is:
+ *   weightedAvg(contextScores) + noise(-0.2..+0.2) * volatility
+ *
+ * The result is clamped to [-1, +1] and then mapped via scoreToStatus().
+ *
+ * @param {string[]} contextStatuses  array of status_economico strings to consider
+ * @param {number[]} weights          parallel array of positive weights (need not sum to 1)
+ * @param {number}   ownScore         the entity's own current status score
+ * @param {number}   ownWeight        weight for the entity's own status (default 1)
+ * @param {Function} [rng]            random function () => [0,1); defaults to Math.random
+ * @returns {string}  new status_economico
+ */
+export function calcularNovoStatusEconomico(
+  contextStatuses,
+  weights,
+  ownScore,
+  ownWeight = 1,
+  rng = Math.random,
+) {
+  let totalWeight = ownWeight;
+  let weightedSum = ownScore * ownWeight;
+
+  for (let i = 0; i < contextStatuses.length; i++) {
+    const w = (weights[i] !== undefined && Number.isFinite(weights[i]) && weights[i] > 0)
+      ? weights[i]
+      : 1;
+    weightedSum += statusToScore(contextStatuses[i]) * w;
+    totalWeight += w;
+  }
+
+  const avgScore = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
+  // Stochastic nudge: small random perturbation to avoid deterministic locks
+  const noise = (rng() - 0.5) * 0.4; // range -0.2..+0.2
+  const finalScore = Math.max(-1, Math.min(1, avgScore + noise));
+
+  return scoreToStatus(finalScore);
+}
+
+/**
+ * Compute the new status_economico for a **pessoa** entity.
+ *
+ * Considers:
+ *  - Own current status (weight 2)
+ *  - Employer empresa status (weight 1), if the pessoa has an empresa_id
+ *  - Estado status (weight 1)
+ *
+ * @param {Object} pessoa
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[], clubes?: Object[] }} world
+ * @param {Function} [rng]
+ * @returns {string}  new status_economico
+ */
+export function calcularStatusPessoa(pessoa, world, rng = Math.random) {
+  const empresasById = new Map((world.empresas || []).map(e => [e.id, e]));
+  const estadosById  = new Map((world.estados  || []).map(s => [s.id, s]));
+
+  const contextStatuses = [];
+  const weights = [];
+
+  // Employer: pessoas with empresa_id reference (stored as clube field historically,
+  // but we check both empresa_id and clube for backward compatibility)
+  const empregadorId = pessoa.empresa_id || '';
+  if (empregadorId) {
+    const emp = empresasById.get(empregadorId);
+    if (emp) { contextStatuses.push(emp.status_economico || 'estagnacao'); weights.push(1); }
+  }
+
+  // State
+  const estado = estadosById.get(pessoa.estado_id);
+  if (estado) { contextStatuses.push(estado.status_economico || 'estagnacao'); weights.push(1); }
+
+  return calcularNovoStatusEconomico(
+    contextStatuses,
+    weights,
+    statusToScore(pessoa.status_economico || 'estagnacao'),
+    2,
+    rng,
+  );
+}
+
+/**
+ * Compute the new status_economico for an **empresa** entity.
+ *
+ * Considers:
+ *  - Own current status (weight 2)
+ *  - Estado status (weight 1)
+ *  - Each supplier empresa (in fornecedores_ids) status (weight 1 each)
+ *
+ * @param {Object} empresa
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[], clubes?: Object[] }} world
+ * @param {Function} [rng]
+ * @returns {string}  new status_economico
+ */
+export function calcularStatusEmpresa(empresa, world, rng = Math.random) {
+  const empresasById = new Map((world.empresas || []).map(e => [e.id, e]));
+  const estadosById  = new Map((world.estados  || []).map(s => [s.id, s]));
+
+  const contextStatuses = [];
+  const weights = [];
+
+  // State
+  const estado = estadosById.get(empresa.estado_id);
+  if (estado) { contextStatuses.push(estado.status_economico || 'estagnacao'); weights.push(1); }
+
+  // Supplier companies (fornecedores)
+  for (const fornId of (empresa.fornecedores_ids || [])) {
+    const forn = empresasById.get(fornId);
+    if (forn) { contextStatuses.push(forn.status_economico || 'estagnacao'); weights.push(1); }
+  }
+
+  return calcularNovoStatusEconomico(
+    contextStatuses,
+    weights,
+    statusToScore(empresa.status_economico || 'estagnacao'),
+    2,
+    rng,
+  );
+}
+
+/**
+ * Compute the new status_economico for an **estado** entity.
+ *
+ * Considers:
+ *  - Own current status (weight 2)
+ *  - Each citizen (pessoa in this estado) status, weighted by pessoa.peso (default 1)
+ *  - Each empresa in this estado (weight 1 each)
+ *  - Parent estado status (weight 1), if present
+ *  - Child estados statuses (weight 1 each)
+ *
+ * @param {Object} estado
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[], clubes?: Object[] }} world
+ * @param {Function} [rng]
+ * @returns {string}  new status_economico
+ */
+export function calcularStatusEstado(estado, world, rng = Math.random) {
+  const estadosById = new Map((world.estados || []).map(s => [s.id, s]));
+
+  const contextStatuses = [];
+  const weights = [];
+
+  // Citizens of this estado (weighted by peso)
+  for (const p of (world.pessoas || [])) {
+    if (p.estado_id !== estado.id) continue;
+    const w = Math.max(1, toNum(p.peso, 1));
+    contextStatuses.push(p.status_economico || 'estagnacao');
+    weights.push(w);
+  }
+
+  // Empresas in this estado
+  for (const emp of (world.empresas || [])) {
+    if (emp.estado_id !== estado.id) continue;
+    contextStatuses.push(emp.status_economico || 'estagnacao');
+    weights.push(1);
+  }
+
+  // Parent estado
+  if (estado.parent_id) {
+    const parent = estadosById.get(estado.parent_id);
+    if (parent) { contextStatuses.push(parent.status_economico || 'estagnacao'); weights.push(1); }
+  }
+
+  // Child estados
+  for (const other of (world.estados || [])) {
+    if (other.parent_id === estado.id && other.id !== estado.id) {
+      contextStatuses.push(other.status_economico || 'estagnacao');
+      weights.push(1);
+    }
+  }
+
+  return calcularNovoStatusEconomico(
+    contextStatuses,
+    weights,
+    statusToScore(estado.status_economico || 'estagnacao'),
+    2,
+    rng,
+  );
+}
+
+/** @param {string|number|boolean} v @returns {number} */
+function toNum(v, fallback = 0) {
+  if (v === null || v === undefined || v === '') return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
