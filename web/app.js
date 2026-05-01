@@ -47,6 +47,7 @@ import {
   calcMatchScore, calcNewAverage, calcNewMarketValue,
 } from '../src/core/scouts.js';
 import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEGMENTO_DEMAND_PARAMS, STATUS_ECONOMICO, SETOR_ECONOMICO } from '../src/core/economy.js';
+import { parseGridCitiesText, importCities } from '../src/core/import-cities.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [], clubes: [], mapa: {} };
@@ -2212,6 +2213,32 @@ document.getElementById('file-mapa').addEventListener('change', async e => {
     setStatus(`Mapa carregado: ${file.name} — ${imported} células importadas${ignored ? `, ${ignored} ignoradas` : ''}.`);
   } catch (err) {
     setStatus(`Erro ao importar mapa: ${err.message}`);
+  }
+  e.target.value = '';
+});
+
+// ── Cities txt import ─────────────────────────────────────────────────────────
+
+document.getElementById('file-import-cities').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text    = await readFile(file);
+    const entries = parseGridCitiesText(text);
+    if (!entries.length) {
+      setStatus('⚠ Nenhuma entrada válida encontrada no arquivo.');
+      return;
+    }
+    const { created, updated } = importCities(world, entries, { tick: getCurrentTick() });
+    mapaWorld = world.mapa;
+    triggerSave();
+    renderEstadosTable();
+    renderMapaGrid();
+    setStatus(
+      `🏙 Cidades importadas: ${created.length} criada(s), ${updated.length} coordenada(s) associada(s).`
+    );
+  } catch (err) {
+    setStatus(`⚠ Erro ao importar cidades: ${err.message}`);
   }
   e.target.value = '';
 });

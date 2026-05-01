@@ -1,0 +1,28 @@
+# grid_cities.txt — Sample city list for The Matchday Tales
+#
+# Format: (x,y) -> Nome da Cidade
+#   x = longitude  (integer, -180..180)
+#   y = latitude   (integer,  -90..90)
+#
+# Lines starting with '#' and blank lines are ignored.
+
+(-46,-23) -> São Paulo
+(-43,-22) -> Rio de Janeiro
+(-48,-15) -> Brasília
+(-38,-12) -> Salvador
+(-34,-8) -> Recife
+(-44,-19) -> Belo Horizonte
+(-51,-30) -> Porto Alegre
+(-49,-25) -> Curitiba
+(-60,-3) -> Manaus
+(-48,-1) -> Belém
+(-35,-5) -> Fortaleza
+(-44,-20) -> Campinas
+(-47,-23) -> Guarulhos
+(-51,-21) -> São José do Rio Preto
+(-54,-20) -> Campo Grande
+(-47,-15) -> Goiânia
+(-42,-20) -> Juiz de Fora
+(-40,-20) -> Vitória
+(-48,-27) -> Florianópolis
+(-56,-15) -> Cuiabá
