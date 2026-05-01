@@ -18,6 +18,11 @@
  */
 
 import { reconcilePatrimonio } from './world.js';
+import {
+  calcularStatusPessoa,
+  calcularStatusEmpresa,
+  calcularStatusEstado,
+} from './economy.js';
 
 /** @param {any[]} arr @returns {Map<string, any>} */
 function indexById(arr) {
@@ -564,6 +569,20 @@ export function tickMensal(config, world) {
 
       log.push(`[Investimento] ${estado.nome}: cultura +${bonusCultura.toFixed(2)}, FA +${bonusFA.toFixed(2)}, moral_pop agora ${estado.atributos.moral_populacao.toFixed(2)}`);
     }
+  }
+
+  // ── 9) Atualização do status_economico de todas as entidades ────────────
+  // Empresas first (estados depend on empresas, pessoas depend on empresas)
+  for (const emp of world.empresas) {
+    emp.status_economico = calcularStatusEmpresa(emp, world);
+  }
+  // Estados (depend on pessoas and empresas, which are now updated)
+  for (const estado of world.estados) {
+    estado.status_economico = calcularStatusEstado(estado, world);
+  }
+  // Pessoas (depend on empresa and estado, which are now updated)
+  for (const p of world.pessoas) {
+    p.status_economico = calcularStatusPessoa(p, world);
   }
 
   return log;

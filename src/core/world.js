@@ -56,6 +56,21 @@ function toBool(v) {
 // ── Pessoas ───────────────────────────────────────────────────────────────
 
 /**
+ * Parse a JSON-encoded list of IDs, defaulting to an empty array on error.
+ * @param {string|null|undefined} v
+ * @returns {string[]}
+ */
+function toIdList(v) {
+  if (!v || v === '' || v === '[]') return [];
+  try {
+    const parsed = JSON.parse(v);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+/**
  * Parse raw CSV rows (from csv.js parseCsv) into typed pessoa objects.
  * Each pessoa gets a default ativos dict; call applyAtivos() to override from ativos.csv.
  * @param {Object[]} rows
@@ -69,6 +84,7 @@ export function rowsToPessoas(rows) {
       nome: r.nome,
       classe: r.classe,
       estado_id: r.estado_id || '',
+      peso: toNum(r.peso, 1),
       atributos: {
         influencia: toNum(r.influencia, 1),
         patrimonio,
@@ -90,6 +106,7 @@ export function rowsToPessoas(rows) {
       tick_registro:     toNum(r.tick_registro, 0),
       tick_saida:        toNum(r.tick_saida,    0),
       status_economico:  r.status_economico  || 'estagnacao',
+      fornecedores_ids:  toIdList(r.fornecedores_ids),
       // Default ativos: single entry matching patrimonio
       ativos: { patrimonio_geral: patrimonio },
     };
@@ -108,6 +125,7 @@ export function pessoasToRows(pessoas) {
     nome: p.nome,
     classe: p.classe,
     estado_id: p.estado_id,
+    peso: p.peso ?? 1,
     influencia: p.atributos.influencia,
     patrimonio: p.atributos.patrimonio,
     moral:      p.atributos.moral,
@@ -125,6 +143,7 @@ export function pessoasToRows(pessoas) {
     tick_registro:     p.tick_registro     || 0,
     tick_saida:        p.tick_saida        || 0,
     status_economico:  p.status_economico  || 'estagnacao',
+    fornecedores_ids:  JSON.stringify(p.fornecedores_ids || []),
   }));
 }
 
@@ -163,6 +182,7 @@ export function rowsToEmpresas(rows) {
       tick_registro: toNum(r.tick_registro, 0),
       tick_saida:    toNum(r.tick_saida,    0),
       status_economico: r.status_economico || 'estagnacao',
+      fornecedores_ids: toIdList(r.fornecedores_ids),
       ativos: { patrimonio_geral: patrimonio },
     };
   });
@@ -193,6 +213,8 @@ export function empresasToRows(empresas) {
     insumos:               e.custos.insumos,
     tick_registro:         e.tick_registro || 0,
     tick_saida:            e.tick_saida    || 0,
+    status_economico:      e.status_economico || 'estagnacao',
+    fornecedores_ids:      JSON.stringify(e.fornecedores_ids || []),
   }));
 }
 
@@ -249,6 +271,7 @@ export function rowsToEstados(rows) {
       tick_registro: toNum(r.tick_registro, 0),
       tick_saida:    toNum(r.tick_saida,    0),
       status_economico: r.status_economico || 'estagnacao',
+      fornecedores_ids: toIdList(r.fornecedores_ids),
       ativos: { patrimonio_geral: patrimonio },
     };
   });
@@ -294,6 +317,78 @@ export function estadosToRows(estados) {
     tick_registro:        s.tick_registro || 0,
     tick_saida:           s.tick_saida    || 0,
     status_economico:     s.status_economico || 'estagnacao',
+    fornecedores_ids:     JSON.stringify(s.fornecedores_ids || []),
+  }));
+}
+
+// ── Clubes ─────────────────────────────────────────────────────────────────
+
+/**
+ * Parse raw CSV rows into typed clube objects.
+ * Clubes are sports clubs with dedicated financial management fields.
+ * @param {Object[]} rows
+ * @returns {Object[]}
+ */
+export function rowsToClubes(rows) {
+  return rows.map(r => {
+    const patrimonio = toNum(r.patrimonio, 0);
+    return {
+      id: r.id,
+      nome: r.nome,
+      dono_id: r.dono_id || '',
+      estado_id: r.estado_id || '',
+      patrimonio,
+      financas: {
+        receita_bilheteria:   toNum(r.receita_bilheteria, 0),
+        receita_tv:           toNum(r.receita_tv, 0),
+        receita_patrocinios:  toNum(r.receita_patrocinios, 0),
+        receita_transferencias: toNum(r.receita_transferencias, 0),
+        folha_salarial:       toNum(r.folha_salarial, 0),
+        custo_infraestrutura: toNum(r.custo_infraestrutura, 0),
+        custo_contratacoes:   toNum(r.custo_contratacoes, 0),
+        saldo:                toNum(r.saldo, 0),
+      },
+      atributos: {
+        torcida:        toNum(r.torcida, 0),
+        reputacao:      toNum(r.reputacao, 3),
+        instalacoes:    toNum(r.instalacoes, 3),
+      },
+      tick_registro: toNum(r.tick_registro, 0),
+      tick_saida:    toNum(r.tick_saida,    0),
+      status_economico: r.status_economico || 'estagnacao',
+      fornecedores_ids: toIdList(r.fornecedores_ids),
+      ativos: { patrimonio_geral: patrimonio },
+    };
+  });
+}
+
+/**
+ * Serialize typed clube objects back to CSV-ready rows.
+ * @param {Object[]} clubes
+ * @returns {Object[]}
+ */
+export function clubesToRows(clubes) {
+  return clubes.map(c => ({
+    id: c.id,
+    nome: c.nome,
+    dono_id: c.dono_id || '',
+    estado_id: c.estado_id || '',
+    patrimonio: Math.round(c.patrimonio || 0),
+    receita_bilheteria:     Math.round(c.financas.receita_bilheteria   || 0),
+    receita_tv:             Math.round(c.financas.receita_tv           || 0),
+    receita_patrocinios:    Math.round(c.financas.receita_patrocinios  || 0),
+    receita_transferencias: Math.round(c.financas.receita_transferencias || 0),
+    folha_salarial:         Math.round(c.financas.folha_salarial       || 0),
+    custo_infraestrutura:   Math.round(c.financas.custo_infraestrutura || 0),
+    custo_contratacoes:     Math.round(c.financas.custo_contratacoes   || 0),
+    saldo:                  Math.round(c.financas.saldo                || 0),
+    torcida:    c.atributos.torcida,
+    reputacao:  c.atributos.reputacao,
+    instalacoes: c.atributos.instalacoes,
+    tick_registro: c.tick_registro || 0,
+    tick_saida:    c.tick_saida    || 0,
+    status_economico: c.status_economico || 'estagnacao',
+    fornecedores_ids: JSON.stringify(c.fornecedores_ids || []),
   }));
 }
 
@@ -306,7 +401,7 @@ export function estadosToRows(estados) {
  *   - patrimonio is recomputed as the sum of all ativo values
  * Entities without an entry in ativosRows keep their default ativos.
  *
- * @param {{ pessoas: Object[], empresas: Object[], estados: Object[] }} world
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[], clubes: Object[] }} world
  * @param {Object[]} ativosRows  rows from parseCsv(ativos.csv)
  */
 export function applyAtivos(world, ativosRows) {
@@ -335,11 +430,12 @@ export function applyAtivos(world, ativosRows) {
   apply(world.pessoas,  'pessoa',  true);
   apply(world.empresas, 'empresa', false);
   apply(world.estados,  'estado',  false);
+  apply(world.clubes || [], 'clube', false);
 }
 
 /**
  * Serialize all entity ativos to CSV rows for ativos.csv.
- * @param {{ pessoas: Object[], empresas: Object[], estados: Object[] }} world
+ * @param {{ pessoas: Object[], empresas: Object[], estados: Object[], clubes: Object[] }} world
  * @returns {Object[]}
  */
 export function worldAtivosToRows(world) {
@@ -354,6 +450,7 @@ export function worldAtivosToRows(world) {
   add(world.pessoas,  'pessoa');
   add(world.empresas, 'empresa');
   add(world.estados,  'estado');
+  add(world.clubes || [], 'clube');
   return rows;
 }
 
