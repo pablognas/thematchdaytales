@@ -55,6 +55,7 @@ export function rowsToPessoas(rows) {
       clube_emprestador: r.clube_emprestador || '',
       tick_registro:     toNum(r.tick_registro, 0),
       tick_saida:        toNum(r.tick_saida,    0),
+      status_economico:  r.status_economico  || 'estagnacao',
       // Default ativos: single entry matching patrimonio
       ativos: { patrimonio_geral: patrimonio },
     };
@@ -89,6 +90,7 @@ export function pessoasToRows(pessoas) {
     clube_emprestador: p.clube_emprestador || '',
     tick_registro:     p.tick_registro     || 0,
     tick_saida:        p.tick_saida        || 0,
+    status_economico:  p.status_economico  || 'estagnacao',
   }));
 }
 
@@ -109,6 +111,8 @@ export function rowsToEmpresas(rows) {
       dono_id: r.dono_id,
       estado_id: r.estado_id || '',
       segmento: r.segmento || 'POP_NAO_DURAVEL',
+      setor_economico: r.setor_economico || 'servicos',
+      status_economico: r.status_economico || 'estagnacao',
       patrimonio,
       atributos: {
         funcionarios:          toNum(r.funcionarios, 0),
@@ -125,6 +129,7 @@ export function rowsToEmpresas(rows) {
       },
       tick_registro: toNum(r.tick_registro, 0),
       tick_saida:    toNum(r.tick_saida,    0),
+      status_economico: r.status_economico || 'estagnacao',
       ativos: { patrimonio_geral: patrimonio },
     };
   });
@@ -142,6 +147,8 @@ export function empresasToRows(empresas) {
     dono_id: e.dono_id,
     estado_id: e.estado_id,
     segmento: e.segmento || 'POP_NAO_DURAVEL',
+    setor_economico: e.setor_economico || 'servicos',
+    status_economico: e.status_economico || 'estagnacao',
     patrimonio:            Math.round(e.patrimonio || 0),
     funcionarios:          e.atributos.funcionarios,
     renda:                 e.atributos.renda,
@@ -195,6 +202,7 @@ export function rowsToEstados(rows) {
       },
       tick_registro: toNum(r.tick_registro, 0),
       tick_saida:    toNum(r.tick_saida,    0),
+      status_economico: r.status_economico || 'estagnacao',
       ativos: { patrimonio_geral: patrimonio },
     };
   });
@@ -227,6 +235,7 @@ export function estadosToRows(estados) {
     investimento_fa:      s.financas.investimento_fa,
     tick_registro:        s.tick_registro || 0,
     tick_saida:           s.tick_saida    || 0,
+    status_economico:     s.status_economico || 'estagnacao',
   }));
 }
 

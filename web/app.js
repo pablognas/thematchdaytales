@@ -43,7 +43,7 @@ import {
   SCOUTS_ATAQUE, SCOUTS_DEFESA,
   calcMatchScore, calcNewAverage, calcNewMarketValue,
 } from '../src/core/scouts.js';
-import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEGMENTO_DEMAND_PARAMS } from '../src/core/economy.js';
+import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEGMENTO_DEMAND_PARAMS, STATUS_ECONOMICO, SETOR_ECONOMICO } from '../src/core/economy.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [] };
@@ -414,6 +414,7 @@ function renderPessoasTable() {
       <th>ID</th>
       ${sortHeader('Nome', 'nome', 'pessoas')}
       <th>Classe</th><th>Estado</th>
+      <th>Status Econ.</th>
       <th>Influência</th>
       ${sortHeader('Patrimônio', 'patrimonio', 'pessoas')}
       <th>Moral</th><th>Reputação</th>
@@ -439,6 +440,13 @@ function renderPessoasTable() {
         </select>
       </td>
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="estado_id" value="${esc(pessoa.estado_id)}" style="width:90px" /></td>
+      <td>
+        <select class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="status_economico" style="min-width:110px">
+          <option value="recessao"${pessoa.status_economico === 'recessao' ? ' selected' : ''}>📉 Recessão</option>
+          <option value="estagnacao"${(pessoa.status_economico || 'estagnacao') === 'estagnacao' ? ' selected' : ''}>➡ Estagnação</option>
+          <option value="crescimento"${pessoa.status_economico === 'crescimento' ? ' selected' : ''}>📈 Crescimento</option>
+        </select>
+      </td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.influencia" value="${pessoa.atributos.influencia}" style="width:55px" /></td>
       <td class="num">${fmtNum(pessoa.atributos.patrimonio)}</td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="1" data-entity="pessoa" data-idx="${i}" data-field="atributos.moral" value="${pessoa.atributos.moral}" style="width:55px" /></td>
@@ -490,6 +498,8 @@ function renderEmpresasTable() {
       <th>ID</th>
       ${sortHeader('Nome', 'nome', 'empresas')}
       <th>Segmento</th>
+      <th>Setor Econ.</th>
+      <th>Status Econ.</th>
       <th>Dono</th><th>Estado</th>
       ${sortHeader('Patrimônio', 'patrimonio', 'empresas')}
       <th>Funcionários</th><th>Renda</th><th>Produção</th>
@@ -512,6 +522,20 @@ function renderEmpresasTable() {
           <option value="B2B"${emp.segmento === 'B2B' ? ' selected' : ''}>🟡 B2B</option>
           <option value="ESTADO"${emp.segmento === 'ESTADO' ? ' selected' : ''}>⚫ Estado</option>
           <option value="CLUBE"${emp.segmento === 'CLUBE' ? ' selected' : ''}>⚽ Clube</option>
+        </select>
+      </td>
+      <td>
+        <select class="cell-input" data-entity="empresa" data-idx="${i}" data-field="setor_economico" style="min-width:110px">
+          <option value="agricola"${(emp.setor_economico || 'servicos') === 'agricola' ? ' selected' : ''}>🌾 Agrícola</option>
+          <option value="industrial"${emp.setor_economico === 'industrial' ? ' selected' : ''}>🏭 Industrial</option>
+          <option value="servicos"${(emp.setor_economico || 'servicos') === 'servicos' ? ' selected' : ''}>🏢 Serviços</option>
+        </select>
+      </td>
+      <td>
+        <select class="cell-input" data-entity="empresa" data-idx="${i}" data-field="status_economico" style="min-width:110px">
+          <option value="recessao"${emp.status_economico === 'recessao' ? ' selected' : ''}>📉 Recessão</option>
+          <option value="estagnacao"${(emp.status_economico || 'estagnacao') === 'estagnacao' ? ' selected' : ''}>➡ Estagnação</option>
+          <option value="crescimento"${emp.status_economico === 'crescimento' ? ' selected' : ''}>📈 Crescimento</option>
         </select>
       </td>
       <td class="id-cell">${esc(emp.dono_id)}</td>
@@ -571,6 +595,7 @@ function renderEstadosTable() {
       <th>ID</th>
       ${sortHeader('Nome', 'nome', 'estados')}
       <th>Tipo</th><th>Parent</th><th>Descrição</th>
+      <th>Status Econ.</th>
       ${sortHeader('Patrimônio', 'patrimonio', 'estados')}
       <th>Populacão</th><th>Forças Arm.</th><th>Cultura</th><th>Moral Pop.</th>
       <th>Renda Trib.</th><th>IR PF</th><th>IR PJ</th><th>Imp. Prod.</th>
@@ -600,6 +625,13 @@ function renderEstadosTable() {
         ${parentOpts}
       </select></td>
       <td><input class="cell-input" data-entity="estado" data-idx="${i}" data-field="descricao" value="${esc(est.descricao || '')}" style="width:160px" /></td>
+      <td>
+        <select class="cell-input" data-entity="estado" data-idx="${i}" data-field="status_economico" style="min-width:110px">
+          <option value="recessao"${est.status_economico === 'recessao' ? ' selected' : ''}>📉 Recessão</option>
+          <option value="estagnacao"${(est.status_economico || 'estagnacao') === 'estagnacao' ? ' selected' : ''}>➡ Estagnação</option>
+          <option value="crescimento"${est.status_economico === 'crescimento' ? ' selected' : ''}>📈 Crescimento</option>
+        </select>
+      </td>
       <td class="num">${fmtNum(Math.round(est.patrimonio || 0))}</td>
       <td class="num"><input class="cell-input num" type="number" min="0" data-entity="estado" data-idx="${i}" data-field="atributos.populacao" value="${est.atributos.populacao}" style="width:110px" /></td>
       <td class="num"><input class="cell-input num" type="number" min="0" max="5" step="0.1" data-entity="estado" data-idx="${i}" data-field="atributos.forcas_armadas" value="${est.atributos.forcas_armadas}" style="width:60px" /></td>
@@ -714,6 +746,8 @@ const FIELD_SETTERS = {
   // Shared text
   nome:      (e, v) => { e.nome      = v; },
   estado_id: (e, v) => { e.estado_id = v; },
+  // Economic status (pessoa, empresa, estado)
+  status_economico: (e, v) => { e.status_economico = v; },
   // Pessoa top-level text
   classe:    (e, v) => { e.classe    = v; },
   // Pessoa atributos
@@ -722,6 +756,7 @@ const FIELD_SETTERS = {
   'atributos.reputacao':  (e, v) => { e.atributos.reputacao  = v; },
   // Empresa atributos
   segmento: (e, v) => { e.segmento = v; },
+  setor_economico: (e, v) => { e.setor_economico = v; },
   'atributos.funcionarios':          (e, v) => { e.atributos.funcionarios          = v; },
   'atributos.renda':                 (e, v) => { e.atributos.renda                 = v; },
   'atributos.producao':              (e, v) => { e.atributos.producao              = v; },
@@ -1725,6 +1760,16 @@ function buildPessoaForm() {
         <input type="checkbox" id="nef-gasto-rep" checked />
         <label class="form-label" for="nef-gasto-rep">Reputação</label>
       </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-status-economico-pessoa">Status Econômico</label>
+        <select id="nef-status-economico-pessoa" class="cell-input">
+          <option value="recessao">📉 Recessão</option>
+          <option value="estagnacao" selected>➡ Estagnação</option>
+          <option value="crescimento">📈 Crescimento</option>
+        </select>
+      </div>
     </div>`;
 }
 
@@ -1747,6 +1792,22 @@ function buildEmpresaForm() {
           <option value="B2B">🟡 B2B (Insumos)</option>
           <option value="ESTADO">⚫ Estado/Governo</option>
           <option value="CLUBE">⚽ Clube</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-setor-economico">Setor Econômico</label>
+        <select id="nef-setor-economico" class="cell-input">
+          <option value="agricola">🌾 Agrícola</option>
+          <option value="industrial">🏭 Industrial</option>
+          <option value="servicos" selected>🏢 Serviços</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nef-status-economico-empresa">Status Econômico</label>
+        <select id="nef-status-economico-empresa" class="cell-input">
+          <option value="recessao">📉 Recessão</option>
+          <option value="estagnacao" selected>➡ Estagnação</option>
+          <option value="crescimento">📈 Crescimento</option>
         </select>
       </div>
     </div>
@@ -1898,6 +1959,16 @@ function buildEstadoForm() {
         <label class="form-label" for="nef-inv-fa">Inv. FA</label>
         <input id="nef-inv-fa" class="cell-input num" type="number" min="0" step="1000" value="0" />
       </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label" for="nef-status-economico-estado">Status Econômico</label>
+        <select id="nef-status-economico-estado" class="cell-input">
+          <option value="recessao">📉 Recessão</option>
+          <option value="estagnacao" selected>➡ Estagnação</option>
+          <option value="crescimento">📈 Crescimento</option>
+        </select>
+      </div>
     </div>`;
 }
 
@@ -1950,6 +2021,7 @@ function saveNewEntity() {
       nome,
       classe:    document.getElementById('nef-classe').value,
       estado_id: document.getElementById('nef-estado').value,
+      status_economico: document.getElementById('nef-status-economico-pessoa').value || 'estagnacao',
       atributos: {
         influencia: parseFloat(document.getElementById('nef-influencia').value) || 1,
         patrimonio,
@@ -1978,9 +2050,11 @@ function saveNewEntity() {
     world.empresas.push({
       id,
       nome,
-      dono_id:   document.getElementById('nef-dono').value,
-      estado_id: document.getElementById('nef-estado').value,
-      segmento:  document.getElementById('nef-segmento').value || 'POP_NAO_DURAVEL',
+      dono_id:         document.getElementById('nef-dono').value,
+      estado_id:       document.getElementById('nef-estado').value,
+      segmento:        document.getElementById('nef-segmento').value        || 'POP_NAO_DURAVEL',
+      setor_economico: document.getElementById('nef-setor-economico').value || 'servicos',
+      status_economico: document.getElementById('nef-status-economico-empresa').value || 'estagnacao',
       patrimonio,
       atributos: {
         funcionarios:          parseFloat(document.getElementById('nef-funcionarios').value) || 0,
@@ -2018,6 +2092,7 @@ function saveNewEntity() {
       tipo:      document.getElementById('nef-tipo').value.trim(),
       parent_id: parentId,
       descricao: document.getElementById('nef-descricao').value.trim(),
+      status_economico: document.getElementById('nef-status-economico-estado').value || 'estagnacao',
       patrimonio,
       atributos: {
         populacao:       parseFloat(document.getElementById('nef-populacao').value)  || 0,

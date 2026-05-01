@@ -3,7 +3,8 @@
  *
  * Simulates how many companies should exist in a state based on:
  *   - Population size
- *   - Economic state: 'estavel' (stable) or 'instavel' (unstable)
+ *   - Economic state: 'recessao' | 'estagnacao' | 'crescimento'
+ *     (legacy aliases 'estavel' / 'instavel' still accepted for backward compatibility)
  *   - Stochastic crises that occasionally reduce companies, followed by recovery
  *   - Company segments (público-alvo / target market)
  *
@@ -11,15 +12,55 @@
  *   simulateEconomy(params)           — run a macro simulation and return series + metadata
  *   simulateEconomyBySegment(params)  — run per-segment simulation with demand dynamics
  *
+ * Entity status constants (exported):
+ *   STATUS_ECONOMICO  — RECESSAO | ESTAGNACAO | CRESCIMENTO
+ *
+ * Company sector constants (exported):
+ *   SETOR_ECONOMICO   — AGRICOLA | INDUSTRIAL | SERVICOS
+ *
  * Segment constants (exported):
  *   PUBLICO_ALVO   — POPULACAO | EMPRESAS | ESTADO
  *   TIPO_BEM       — DURAVEL | NAO_DURAVEL  (applicable to POPULACAO only)
  *   SEGMENTO       — compound segment keys: POP_NAO_DURAVEL | POP_DURAVEL | B2B | ESTADO
  *   SEGMENTO_META  — display label + publicoAlvo + tipoBem per segment
  *
+ * Consumption rules:
+ *   - Pessoas (POPULACAO) consume from companies of ALL setores econômicos.
+ *   - Empresas can also consume from companies of other setores econômicos (B2B).
+ *
  * Backup format reference (for import/export):
  *   { version: 1, type: 'simulation_result', stateId, params, result }
  */
+
+// ── Economic status & sector enums ────────────────────────────────────────────
+
+/**
+ * Discrete economic status for pessoa, empresa, and estado entities.
+ * @readonly
+ */
+export const STATUS_ECONOMICO = Object.freeze({
+  /** Economic recession — activity contracting, high unemployment. */
+  RECESSAO:   'recessao',
+  /** Economic stagnation — flat activity, low growth. */
+  ESTAGNACAO: 'estagnacao',
+  /** Economic growth — expanding activity, rising employment. */
+  CRESCIMENTO: 'crescimento',
+});
+
+/**
+ * Economic sector for empresa entities.
+ * Pessoas consume from companies of ALL setores.
+ * Empresas may also consume from companies of other setores (B2B).
+ * @readonly
+ */
+export const SETOR_ECONOMICO = Object.freeze({
+  /** Primary sector — agriculture, farming, fishing, mining. */
+  AGRICOLA:   'agricola',
+  /** Secondary sector — manufacturing, construction, industry. */
+  INDUSTRIAL: 'industrial',
+  /** Tertiary sector — trade, finance, services, technology. */
+  SERVICOS:   'servicos',
+});
 
 // ── Segment constants ─────────────────────────────────────────────────────────
 
@@ -116,6 +157,32 @@ const DEFAULT_K = 1000;
 
 /** Parameters per economic state. */
 const ECONOMIC_PARAMS = {
+  // ── Simplified three-state model ──────────────────────────────────────────
+  recessao: {
+    crisisProb:       0.25,   // 25% chance of crisis per step
+    crisisMinShock:   0.20,   // minimum multiplicative reduction (20%)
+    crisisMaxShock:   0.50,   // maximum multiplicative reduction (50%)
+    recoveryStepsMin: 8,      // minimum steps to recover after crisis
+    recoveryStepsMax: 16,
+    growthRate:       0.002,  // very slow recovery growth (0.2%)
+  },
+  estagnacao: {
+    crisisProb:       0.12,   // 12% chance of crisis per step
+    crisisMinShock:   0.10,   // minimum multiplicative reduction (10%)
+    crisisMaxShock:   0.25,   // maximum multiplicative reduction (25%)
+    recoveryStepsMin: 4,      // minimum steps to recover after crisis
+    recoveryStepsMax: 8,
+    growthRate:       0.010,  // stagnant growth (1.0%)
+  },
+  crescimento: {
+    crisisProb:       0.04,   // 4% chance of crisis per step
+    crisisMinShock:   0.05,   // minimum multiplicative reduction (5%)
+    crisisMaxShock:   0.12,   // maximum multiplicative reduction (12%)
+    recoveryStepsMin: 2,      // minimum steps to recover after crisis
+    recoveryStepsMax: 5,
+    growthRate:       0.030,  // strong growth rate (3.0%)
+  },
+  // ── Legacy aliases (backward compatibility) ───────────────────────────────
   estavel: {
     crisisProb:       0.05,   // 5% chance of crisis per step
     crisisMinShock:   0.05,   // minimum multiplicative reduction (5%)

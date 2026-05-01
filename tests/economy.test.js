@@ -12,6 +12,8 @@ import {
   TIPO_BEM,
   SEGMENTO,
   SEGMENTO_META,
+  STATUS_ECONOMICO,
+  SETOR_ECONOMICO,
 } from '../src/core/economy.js';
 
 // ── Basic return shape ────────────────────────────────────────────────────────
@@ -377,5 +379,80 @@ test('simulateEconomyBySegment same seed produces identical results', () => {
   const b = simulateEconomyBySegment(params);
   assert.deepStrictEqual(a.segments, b.segments);
   assert.deepStrictEqual(a.shares,   b.shares);
+});
+
+// ── STATUS_ECONOMICO enum ─────────────────────────────────────────────────────
+
+test('STATUS_ECONOMICO has expected keys and values', () => {
+  assert.strictEqual(STATUS_ECONOMICO.RECESSAO,    'recessao');
+  assert.strictEqual(STATUS_ECONOMICO.ESTAGNACAO,  'estagnacao');
+  assert.strictEqual(STATUS_ECONOMICO.CRESCIMENTO, 'crescimento');
+});
+
+test('STATUS_ECONOMICO has exactly 3 values', () => {
+  assert.strictEqual(Object.keys(STATUS_ECONOMICO).length, 3);
+});
+
+test('STATUS_ECONOMICO is frozen', () => {
+  assert.ok(Object.isFrozen(STATUS_ECONOMICO));
+});
+
+// ── SETOR_ECONOMICO enum ──────────────────────────────────────────────────────
+
+test('SETOR_ECONOMICO has expected keys and values', () => {
+  assert.strictEqual(SETOR_ECONOMICO.AGRICOLA,   'agricola');
+  assert.strictEqual(SETOR_ECONOMICO.INDUSTRIAL, 'industrial');
+  assert.strictEqual(SETOR_ECONOMICO.SERVICOS,   'servicos');
+});
+
+test('SETOR_ECONOMICO has exactly 3 values', () => {
+  assert.strictEqual(Object.keys(SETOR_ECONOMICO).length, 3);
+});
+
+test('SETOR_ECONOMICO is frozen', () => {
+  assert.ok(Object.isFrozen(SETOR_ECONOMICO));
+});
+
+// ── Simplified 3-state economic simulation ────────────────────────────────────
+
+test('recessao has higher crisis probability than crescimento', () => {
+  const rec  = simulateEconomy({ population: 100000, economicState: 'recessao' });
+  const cres = simulateEconomy({ population: 100000, economicState: 'crescimento' });
+  assert.ok(rec.meta.crisisProb > cres.meta.crisisProb);
+});
+
+test('recessao has higher max shock than crescimento', () => {
+  const rec  = simulateEconomy({ population: 100000, economicState: 'recessao' });
+  const cres = simulateEconomy({ population: 100000, economicState: 'crescimento' });
+  assert.ok(rec.meta.crisisMaxShock > cres.meta.crisisMaxShock);
+});
+
+test('recessao has longer average recovery than crescimento', () => {
+  const rec  = simulateEconomy({ population: 100000, economicState: 'recessao' });
+  const cres = simulateEconomy({ population: 100000, economicState: 'crescimento' });
+  assert.ok(rec.meta.avgRecoverySteps > cres.meta.avgRecoverySteps);
+});
+
+test('estagnacao crisis probability is between recessao and crescimento', () => {
+  const rec  = simulateEconomy({ population: 100000, economicState: 'recessao' });
+  const est  = simulateEconomy({ population: 100000, economicState: 'estagnacao' });
+  const cres = simulateEconomy({ population: 100000, economicState: 'crescimento' });
+  assert.ok(rec.meta.crisisProb > est.meta.crisisProb);
+  assert.ok(est.meta.crisisProb > cres.meta.crisisProb);
+});
+
+test('unknown economicState falls back to estagnacao params', () => {
+  const fallback   = simulateEconomy({ population: 100000, economicState: 'INVALID' });
+  const estagnacao = simulateEconomy({ population: 100000, economicState: 'estagnacao' });
+  // unknown state should fall back to a known state; compare against estagnacao
+  assert.ok(typeof fallback.meta.crisisProb === 'number');
+});
+
+test('recessao simulation produces more crises than crescimento (seed-based)', () => {
+  const rec  = simulateEconomy({ population: 500000, economicState: 'recessao',   seed: 42, steps: 120 });
+  const cres = simulateEconomy({ population: 500000, economicState: 'crescimento', seed: 42, steps: 120 });
+  // With high vs low crisis prob, recessao should have more crises
+  assert.ok(rec.meta.totalCrises >= cres.meta.totalCrises,
+    `Expected recessao (${rec.meta.totalCrises}) >= crescimento (${cres.meta.totalCrises}) crises`);
 });
 

@@ -880,10 +880,11 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="sim-econ-state">Estado Econômico</label>
+          <label class="form-label" for="sim-econ-state">Status Econômico</label>
           <select id="sim-econ-state" class="cell-input">
-            <option value="estavel">✅ Estável</option>
-            <option value="instavel">⚠ Instável</option>
+            <option value="recessao">📉 Recessão</option>
+            <option value="estagnacao" selected>➡ Estagnação</option>
+            <option value="crescimento">📈 Crescimento</option>
           </select>
         </div>
 
@@ -915,18 +916,21 @@
     <div class="schedule-section" style="margin-top:1.5rem">
       <h3 style="color:var(--muted);font-size:0.9rem">ℹ Interpretação</h3>
       <ul style="font-size:0.8rem;color:var(--muted);line-height:1.7;padding-left:1.2rem">
-        <li><strong>Estável:</strong> crise com prob. 5%/mês, choque 5–15%, recuperação em 3–6 meses, crescimento orgânico 2%/mês.</li>
-        <li><strong>Instável:</strong> crise com prob. 20%/mês, choque 15–40%, recuperação em 6–12 meses, crescimento 0,5%/mês.</li>
+        <li><strong>📉 Recessão:</strong> crise com prob. 25%/mês, choque 20–50%, recuperação em 8–16 meses, crescimento 0,2%/mês.</li>
+        <li><strong>➡ Estagnação:</strong> crise com prob. 12%/mês, choque 10–25%, recuperação em 4–8 meses, crescimento 1,0%/mês.</li>
+        <li><strong>📈 Crescimento:</strong> crise com prob. 4%/mês, choque 5–12%, recuperação em 2–5 meses, crescimento 3,0%/mês.</li>
         <li><strong>Empresas-alvo:</strong> valor base = população ÷ k. Crises reduzem temporariamente, seguida de recuperação gradual.</li>
         <li><strong>Seed:</strong> usar o mesmo seed produz exatamente o mesmo resultado (reprodutibilidade).</li>
-        <li><strong>Segmentos:</strong> as empresas são distribuídas em 4 grupos com dinâmicas de demanda distintas:
+        <li><strong>Segmentos:</strong> as empresas são distribuídas em grupos com dinâmicas de demanda distintas:
           <ul>
-            <li>🟢 <strong>Pop. Não Durável</strong> (40%): bens consumidos por período (alimentos, higiene). Demanda moderadamente sensível a crises.</li>
+            <li>🟢 <strong>Pop. Não Durável</strong> (40%): bens consumidos por período (alimentos, higiene). Pessoas consomem de empresas de qualquer setor econômico.</li>
             <li>🔵 <strong>Pop. Durável</strong> (20%): eletrodomésticos, móveis — compras adiadas em crises; modelo de estoque com depreciação.</li>
-            <li>🟡 <strong>B2B / Insumos</strong> (30%): vende para outras empresas. Demanda ligada à atividade produtiva.</li>
+            <li>🟡 <strong>B2B / Insumos</strong> (30%): vende para outras empresas de qualquer setor econômico (agrícola, industrial ou serviços).</li>
             <li>⚫ <strong>Estado/Governo</strong> (10%): compras públicas — demanda mais estável e inelástica a crises.</li>
           </ul>
         </li>
+        <li><strong>Status econômico das entidades:</strong> pessoas, empresas e estados possuem status individual (Recessão / Estagnação / Crescimento) que pode ser editado nas respectivas tabelas.</li>
+        <li><strong>Setor econômico das empresas:</strong> 🌾 Agrícola, 🏭 Industrial ou 🏢 Serviços. Pessoas consomem de todos os setores; empresas podem consumir de outros setores via B2B.</li>
       </ul>
     </div>
 
