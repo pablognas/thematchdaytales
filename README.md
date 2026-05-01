@@ -49,7 +49,8 @@ thematchdaytales/
 │       ├── empresas.csv
 │       ├── estados.csv
 │       ├── ativos.csv
-│       └── mapa.json         # ← NEW: sparse world map (lat → lon → cell)
+│       ├── mapa.json         # ← NEW: sparse world map (lat → lon → cell)
+│       └── grid_cities.txt   # ← NEW: sample city list for bulk import
 ├── src/
 │   └── core/                 # Browser-safe ESM modules
 │       ├── csv.js            # CSV parse / unparse / download
@@ -59,7 +60,8 @@ thematchdaytales/
 │       ├── map.js            # getCell / setCell / clearCell / findCellsByEstado
 │       ├── db.js             # SQLite persistence layer (sql.js + IndexedDB)
 │       ├── idb.js            # IndexedDB wrapper (load / save / clear DB bytes)
-│       └── economy.js        # ← NEW: economic simulation (simulateEconomy)
+│       ├── economy.js        # ← NEW: economic simulation (simulateEconomy)
+│       └── import-cities.js  # ← NEW: bulk city import from grid_cities.txt
 ├── web/                      # Static web app
 │   ├── index.html
 │   └── app.js
@@ -296,11 +298,72 @@ Edit these files to add or remove options without changing any code.
 ### Import / Export
 
 - **📂 Importar** (toolbar): load a `mapa.csv` file from disk, replacing the current map. Invalid rows (out-of-range lat/lon) are ignored; the status bar reports counts of imported and ignored rows.
+- **🏙 Importar Cidades** (toolbar): load a `grid_cities.txt` file from disk (see *[Importação de Cidades](#importação-de-cidades)* below). Creates missing city estados and updates their map coordinates idempotently.
 - **⬇ Exportar mapa.csv** (toolbar): download the current map as `mapa.csv`. Only non-default-water cells are written, keeping the file sparse and lightweight.
 
 ### Deletion Validation
 
 Deleting a government unit (Estado) is **blocked** if any map cell has `estado_id` referencing it — on land *or* water. The status bar will report the number of cells and a sample of their coordinates `(lat, lon)`.
+
+---
+
+## Importação de Cidades
+
+A feature **Importar Cidades** (`src/core/import-cities.js`) permite importar em lote uma lista de cidades a partir de um arquivo `.txt`, criando os estados correspondentes e associando suas coordenadas no mapa de forma idempotente.
+
+### Formato do arquivo
+
+```
+# Comentários começam com '#' e são ignorados
+# Linhas em branco também são ignoradas
+
+(x,y) -> Nome da Cidade
+```
+
+Onde:
+- `x` = longitude (inteiro, −180..180)
+- `y` = latitude  (inteiro, −90..90)
+
+**Exemplo (`data/grid_cities.txt`):**
+
+```
+(-46,-23) -> São Paulo
+(-43,-22) -> Rio de Janeiro
+(-48,-15) -> Brasília
+```
+
+### Comportamento (idempotente)
+
+Para cada linha do arquivo:
+
+1. **Criação do estado** — Um ID estável é derivado do nome da cidade via `slugifyNome()` (lowercase, sem acentos, espaços → `_`). Se ainda não existir um estado com esse ID, ele é criado com:
+   - `tipo: 'cidade'`
+   - `parent_id: ''` (sem hierarquia)
+   - `populacao` gerada pela fórmula: `randint(1,10) × 10^(2 + randint(1,4))` (entre 1 000 e 10 000 000)
+   - demais campos com valores padrão.
+2. **Associação de coordenada** — A célula do mapa na posição `(lat, lon)` é configurada com `tipo: 'terra'` e `estado_id` apontando para o estado. Se outra célula apontava erroneamente para esse estado, a associação é removida.
+3. **Idempotência** — Executar a importação mais de uma vez com o mesmo arquivo não duplica estados nem células no mapa.
+
+### Uso no browser
+
+Na aba **🧭 Mapa**, clique em **🏙 Importar Cidades** e selecione o arquivo `.txt`. A barra de status exibirá quantos estados foram criados e quantas coordenadas foram associadas ou atualizadas.
+
+### Uso programático (ESM)
+
+```js
+import { parseGridCitiesText, importCities } from './src/core/import-cities.js';
+
+const text    = '(-46,-23) -> São Paulo\n(-43,-22) -> Rio de Janeiro';
+const entries = parseGridCitiesText(text);
+// entries: [{ lat: -23, lon: -46, nome: 'São Paulo' }, ...]
+
+const { created, updated } = importCities(world, entries, {
+  rng:  Math.random,   // optional PRNG for population formula
+  tick: 0,             // optional tick_registro for new states
+});
+// created: IDs of newly created estados
+// updated: IDs of estados whose map cell was created or corrected
+```
 
 ---
 
