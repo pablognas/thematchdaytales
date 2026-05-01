@@ -866,7 +866,8 @@
     <div class="schedule-section">
       <h3>📊 Simulação de Modelo Econômico</h3>
       <p style="font-size:0.82rem;color:var(--muted);margin-bottom:1rem">
-        Estima quantas empresas deveriam existir em um estado considerando população, estabilidade
+        Estima quantas empresas deveriam existir em um estado considerando a população agregada
+        (soma do campo <strong>peso</strong> das pessoas ativas no estado), estabilidade
         econômica e crises estocásticas. Cada <em>passo</em> representa um mês. Os resultados são
         desagregados por <strong>segmento de público-alvo</strong>.
       </p>
@@ -919,7 +920,7 @@
         <li><strong>📉 Recessão:</strong> crise com prob. 25%/mês, choque 20–50%, recuperação em 8–16 meses, crescimento 0,2%/mês.</li>
         <li><strong>➡ Estagnação:</strong> crise com prob. 12%/mês, choque 10–25%, recuperação em 4–8 meses, crescimento 1,0%/mês.</li>
         <li><strong>📈 Crescimento:</strong> crise com prob. 4%/mês, choque 5–12%, recuperação em 2–5 meses, crescimento 3,0%/mês.</li>
-        <li><strong>Empresas-alvo:</strong> valor base = população ÷ k. Crises reduzem temporariamente, seguida de recuperação gradual.</li>
+        <li><strong>Empresas-alvo:</strong> valor base = soma dos pesos das pessoas ativas no estado ÷ k. Crises reduzem temporariamente, seguida de recuperação gradual.</li>
         <li><strong>Seed:</strong> usar o mesmo seed produz exatamente o mesmo resultado (reprodutibilidade).</li>
         <li><strong>Segmentos:</strong> as empresas são distribuídas em grupos com dinâmicas de demanda distintas:
           <ul>
@@ -929,7 +930,7 @@
             <li>⚫ <strong>Estado/Governo</strong> (10%): compras públicas — demanda mais estável e inelástica a crises.</li>
           </ul>
         </li>
-        <li><strong>Status econômico das entidades:</strong> pessoas, empresas e estados possuem status individual (Recessão / Estagnação / Crescimento) que pode ser editado nas respectivas tabelas.</li>
+        <li><strong>Status econômico das entidades:</strong> pessoas, empresas e estados possuem status individual (📉 Recessão / ➡ Estagnação / 📈 Crescimento). Edite diretamente nas respectivas tabelas. A cada tick, o status evolui via modelo de Markov considerando peso das pessoas, fornecedores e estado associado.</li>
         <li><strong>Setor econômico das empresas:</strong> 🌾 Agrícola, 🏭 Industrial ou 🏢 Serviços. Pessoas consomem de todos os setores; empresas podem consumir de outros setores via B2B.</li>
       </ul>
     </div>

@@ -28,6 +28,7 @@ import {
   rowsToClubes, clubesToRows,
   rowsToEstados, estadosToRows,
   applyAtivos, worldAtivosToRows,
+  calcularPopulacaoEstado,
 } from '../src/core/world.js';
 
 import {
@@ -161,6 +162,39 @@ test('saveWorldToDb / loadWorldFromDb round-trips pessoa.peso', async () => {
   saveWorldToDb(db, world);
   const loaded = loadWorldFromDb(db);
   assert.strictEqual(loaded.pessoas[0].peso, 42);
+});
+
+// ── calcularPopulacaoEstado ────────────────────────────────────────────────────
+
+test('calcularPopulacaoEstado returns 0 for estado with no pessoas', () => {
+  const result = calcularPopulacaoEstado('est1', []);
+  assert.strictEqual(result, 0);
+});
+
+test('calcularPopulacaoEstado sums peso of active pessoas in the estado', () => {
+  const pessoas = [
+    makePessoa({ id: 'p1', estado_id: 'est1', peso: 100, tick_saida: 0 }),
+    makePessoa({ id: 'p2', estado_id: 'est1', peso: 200, tick_saida: 0 }),
+    makePessoa({ id: 'p3', estado_id: 'est2', peso: 500, tick_saida: 0 }),
+  ];
+  assert.strictEqual(calcularPopulacaoEstado('est1', pessoas), 300);
+});
+
+test('calcularPopulacaoEstado excludes archived pessoas (tick_saida > 0)', () => {
+  const pessoas = [
+    makePessoa({ id: 'p1', estado_id: 'est1', peso: 100, tick_saida: 0 }),
+    makePessoa({ id: 'p2', estado_id: 'est1', peso: 200, tick_saida: 5 }),
+  ];
+  assert.strictEqual(calcularPopulacaoEstado('est1', pessoas), 100);
+});
+
+test('calcularPopulacaoEstado defaults missing peso to 1', () => {
+  const pessoas = [
+    { id: 'p1', estado_id: 'est1', tick_saida: 0 },
+    { id: 'p2', estado_id: 'est1', tick_saida: 0, peso: 0 },
+  ];
+  // peso=0 is treated as 1 (minimum)
+  assert.strictEqual(calcularPopulacaoEstado('est1', pessoas), 2);
 });
 
 // ── Pessoa.fornecedores_ids ───────────────────────────────────────────────────
