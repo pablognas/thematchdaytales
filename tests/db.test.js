@@ -327,3 +327,280 @@ test('syncEstadosFromMapa + saveWorldToDb persists mapa-referenced estados on re
   const ids = reloaded.estados.map(s => s.id).sort();
   assert.deepStrictEqual(ids, ['br_rj', 'br_sp']);
 });
+
+// ── tick_registro persistence ─────────────────────────────────────────────────
+// These tests verify that the registration date (tick_registro) is correctly
+// saved to the database and reloaded for all entity types.  They simulate the
+// full edit-save-reload cycle that happens when a user changes the registration
+// date via the table input and the page is subsequently reloaded.
+
+test('tick_registro persists for pessoa after creation (non-zero tick)', async () => {
+  const db    = await getDb();
+  const world = {
+    pessoas: [{
+      id: 'p1', nome: 'Test', classe: 'trabalhador', estado_id: '',
+      peso: 1,
+      atributos: { influencia: 1, patrimonio: 0, moral: 3, reputacao: 1 },
+      renda_mensal: 0, caixa: 0,
+      gastos_mensais_pagos: { influencia: false, moral: false, reputacao: false },
+      nota_scouting: 0, valor_mercado: 0, posicao: '', clube: '', clube_emprestador: '',
+      tick_registro: 13, tick_saida: 0,
+      ativos: { patrimonio_geral: 0 },
+    }],
+    empresas: [], estados: [],
+  };
+  saveWorldToDb(db, world);
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.pessoas[0].tick_registro, 13);
+});
+
+test('tick_registro persists for pessoa after in-memory edit + re-save', async () => {
+  const db    = await getDb();
+  const world = {
+    pessoas: [{
+      id: 'p1', nome: 'Test', classe: 'trabalhador', estado_id: '',
+      peso: 1,
+      atributos: { influencia: 1, patrimonio: 0, moral: 3, reputacao: 1 },
+      renda_mensal: 0, caixa: 0,
+      gastos_mensais_pagos: { influencia: false, moral: false, reputacao: false },
+      nota_scouting: 0, valor_mercado: 0, posicao: '', clube: '', clube_emprestador: '',
+      tick_registro: 1, tick_saida: 0,
+      ativos: { patrimonio_geral: 0 },
+    }],
+    empresas: [], estados: [],
+  };
+
+  // Initial save
+  saveWorldToDb(db, world);
+
+  // Simulate UI edit: FIELD_SETTERS['tick_registro'] sets e.tick_registro = 601
+  world.pessoas[0].tick_registro = 601;
+
+  // Re-save (as triggerSave would do)
+  saveWorldToDb(db, world);
+
+  // Reload from DB and verify updated value
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.pessoas[0].tick_registro, 601,
+    'edited tick_registro must persist through save/reload cycle');
+});
+
+test('tick_registro persists for empresa after in-memory edit + re-save', async () => {
+  const db    = await getDb();
+  const world = {
+    pessoas: [],
+    empresas: [{
+      id: 'e1', nome: 'Empresa', dono_id: '', estado_id: '',
+      segmento: 'POP_NAO_DURAVEL', setor_economico: 'servicos', infraestrutura: '',
+      patrimonio: 0,
+      atributos: { funcionarios: 0, renda: 0, producao: 0, moral_corporativa: 3, reputacao_corporativa: 3, lucro: 0 },
+      custos: { salario_funcionario: 0, manutencao: 0, insumos: 0 },
+      tick_registro: 1, tick_saida: 0,
+      status_economico: 'estagnacao', fornecedores_ids: [],
+      ativos: { patrimonio_geral: 0 },
+    }],
+    estados: [],
+  };
+
+  saveWorldToDb(db, world);
+  world.empresas[0].tick_registro = 601;
+  saveWorldToDb(db, world);
+
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.empresas[0].tick_registro, 601,
+    'edited tick_registro must persist for empresa');
+});
+
+test('tick_registro persists for estado after in-memory edit + re-save', async () => {
+  const db    = await getDb();
+  const world = {
+    pessoas: [], empresas: [],
+    estados: [{
+      id: 'est1', nome: 'Estado', tipo: '', parent_id: '', descricao: '',
+      patrimonio: 0,
+      atributos: { populacao: 1000, forcas_armadas: 1, cultura: 1, moral_populacao: 3 },
+      impostos: { ir_pf: 0, ir_pj: 0, imp_prod: 0 },
+      financas: { renda_tributaria: 0, salarios_politicos: 0, incentivos_empresas: 0, investimento_cultura: 0, investimento_fa: 0 },
+      infraestrutura: {},
+      tick_registro: 1, tick_saida: 0,
+      status_economico: 'estagnacao', fornecedores_ids: [],
+      ativos: { patrimonio_geral: 0 },
+    }],
+  };
+
+  saveWorldToDb(db, world);
+  world.estados[0].tick_registro = 601;
+  saveWorldToDb(db, world);
+
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.estados[0].tick_registro, 601,
+    'edited tick_registro must persist for estado');
+});
+
+test('tick_registro = 0 round-trips correctly', async () => {
+  const db    = await getDb();
+  const world = {
+    pessoas: [{
+      id: 'p1', nome: 'Test', classe: 'trabalhador', estado_id: '',
+      peso: 1,
+      atributos: { influencia: 1, patrimonio: 0, moral: 3, reputacao: 1 },
+      renda_mensal: 0, caixa: 0,
+      gastos_mensais_pagos: { influencia: false, moral: false, reputacao: false },
+      nota_scouting: 0, valor_mercado: 0, posicao: '', clube: '', clube_emprestador: '',
+      tick_registro: 0, tick_saida: 0,
+      ativos: { patrimonio_geral: 0 },
+    }],
+    empresas: [], estados: [],
+  };
+  saveWorldToDb(db, world);
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.pessoas[0].tick_registro, 0,
+    'tick_registro 0 (unset) must survive round-trip as 0');
+});
+
+// ── setor_economico persistence ────────────────────────────────────────────────
+// setor_economico for empresa was previously omitted from EMPRESAS_COLS,
+// empresasToRows, and rowsToEmpresas, causing any edit to be silently discarded
+// on reload.  These tests verify the fix.
+
+test('setor_economico persists for empresa on initial save', async () => {
+  const db    = await getDb();
+  const world = {
+    pessoas: [],
+    empresas: [{
+      id: 'e1', nome: 'Empresa', dono_id: '', estado_id: '',
+      segmento: 'POP_NAO_DURAVEL', setor_economico: 'agricola', infraestrutura: '',
+      patrimonio: 0,
+      atributos: { funcionarios: 0, renda: 0, producao: 0, moral_corporativa: 3, reputacao_corporativa: 3, lucro: 0 },
+      custos: { salario_funcionario: 0, manutencao: 0, insumos: 0 },
+      tick_registro: 1, tick_saida: 0,
+      status_economico: 'estagnacao', fornecedores_ids: [],
+      ativos: { patrimonio_geral: 0 },
+    }],
+    estados: [],
+  };
+  saveWorldToDb(db, world);
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.empresas[0].setor_economico, 'agricola',
+    'setor_economico must persist through save/reload');
+});
+
+test('setor_economico persists after in-memory edit + re-save', async () => {
+  const db    = await getDb();
+  const world = {
+    pessoas: [],
+    empresas: [{
+      id: 'e1', nome: 'Empresa', dono_id: '', estado_id: '',
+      segmento: 'POP_NAO_DURAVEL', setor_economico: 'servicos', infraestrutura: '',
+      patrimonio: 0,
+      atributos: { funcionarios: 0, renda: 0, producao: 0, moral_corporativa: 3, reputacao_corporativa: 3, lucro: 0 },
+      custos: { salario_funcionario: 0, manutencao: 0, insumos: 0 },
+      tick_registro: 1, tick_saida: 0,
+      status_economico: 'estagnacao', fornecedores_ids: [],
+      ativos: { patrimonio_geral: 0 },
+    }],
+    estados: [],
+  };
+
+  // Initial save
+  saveWorldToDb(db, world);
+
+  // Simulate UI edit: FIELD_SETTERS['setor_economico'] sets e.setor_economico
+  world.empresas[0].setor_economico = 'industrial';
+
+  // Re-save (as triggerSave would do)
+  saveWorldToDb(db, world);
+
+  // Reload and verify
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.empresas[0].setor_economico, 'industrial',
+    'edited setor_economico must persist through save/reload cycle');
+});
+
+test('setor_economico defaults to "servicos" when not set in row', async () => {
+  const db = await getDb();
+  // Insert a row directly without setor_economico to simulate old data
+  db.run(`INSERT INTO empresas (id, nome) VALUES ('e1', 'Old')`);
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.empresas[0].setor_economico, 'servicos',
+    'missing setor_economico in row defaults to "servicos"');
+});
+
+test('all three setor_economico values round-trip correctly', async () => {
+  const db = await getDb();
+  const sectors = ['agricola', 'industrial', 'servicos'];
+  for (const sector of sectors) {
+    const world = {
+      pessoas: [],
+      empresas: [{
+        id: 'e1', nome: 'E', dono_id: '', estado_id: '',
+        segmento: 'POP_NAO_DURAVEL', setor_economico: sector, infraestrutura: '',
+        patrimonio: 0,
+        atributos: { funcionarios: 0, renda: 0, producao: 0, moral_corporativa: 3, reputacao_corporativa: 3, lucro: 0 },
+        custos: { salario_funcionario: 0, manutencao: 0, insumos: 0 },
+        tick_registro: 0, tick_saida: 0,
+        status_economico: 'estagnacao', fornecedores_ids: [],
+        ativos: { patrimonio_geral: 0 },
+      }],
+      estados: [],
+    };
+    saveWorldToDb(db, world);
+    const loaded = loadWorldFromDb(db);
+    assert.strictEqual(loaded.empresas[0].setor_economico, sector,
+      `setor_economico '${sector}' must round-trip correctly`);
+  }
+});
+
+// ── Regression: other editable fields continue to save normally ───────────────
+
+test('nome edit persists for pessoa', async () => {
+  const db    = await getDb();
+  const world = {
+    pessoas: [{
+      id: 'p1', nome: 'Antes', classe: 'trabalhador', estado_id: '',
+      peso: 1,
+      atributos: { influencia: 1, patrimonio: 0, moral: 3, reputacao: 1 },
+      renda_mensal: 0, caixa: 0,
+      gastos_mensais_pagos: { influencia: false, moral: false, reputacao: false },
+      nota_scouting: 0, valor_mercado: 0, posicao: '', clube: '', clube_emprestador: '',
+      tick_registro: 0, tick_saida: 0,
+      ativos: { patrimonio_geral: 0 },
+    }],
+    empresas: [], estados: [],
+  };
+  saveWorldToDb(db, world);
+
+  world.pessoas[0].nome = 'Depois';
+  saveWorldToDb(db, world);
+
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.pessoas[0].nome, 'Depois',
+    'nome edit must persist for pessoa');
+});
+
+test('status_economico edit persists for empresa', async () => {
+  const db    = await getDb();
+  const world = {
+    pessoas: [],
+    empresas: [{
+      id: 'e1', nome: 'E', dono_id: '', estado_id: '',
+      segmento: 'POP_NAO_DURAVEL', setor_economico: 'servicos', infraestrutura: '',
+      patrimonio: 0,
+      atributos: { funcionarios: 0, renda: 0, producao: 0, moral_corporativa: 3, reputacao_corporativa: 3, lucro: 0 },
+      custos: { salario_funcionario: 0, manutencao: 0, insumos: 0 },
+      tick_registro: 0, tick_saida: 0,
+      status_economico: 'estagnacao', fornecedores_ids: [],
+      ativos: { patrimonio_geral: 0 },
+    }],
+    estados: [],
+  };
+  saveWorldToDb(db, world);
+
+  world.empresas[0].status_economico = 'crescimento';
+  saveWorldToDb(db, world);
+
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.empresas[0].status_economico, 'crescimento',
+    'status_economico edit must persist for empresa');
+});
+

@@ -164,6 +164,7 @@ export function rowsToEmpresas(rows) {
       dono_id: r.dono_id,
       estado_id: r.estado_id || '',
       segmento: r.segmento || 'POP_NAO_DURAVEL',
+      setor_economico: r.setor_economico || 'servicos',
       infraestrutura: r.infraestrutura || '',
       patrimonio,
       atributos: {
@@ -200,6 +201,7 @@ export function empresasToRows(empresas) {
     dono_id: e.dono_id,
     estado_id: e.estado_id,
     segmento: e.segmento || 'POP_NAO_DURAVEL',
+    setor_economico:       e.setor_economico || 'servicos',
     infraestrutura:        e.infraestrutura || '',
     patrimonio:            Math.round(e.patrimonio || 0),
     funcionarios:          e.atributos.funcionarios,
