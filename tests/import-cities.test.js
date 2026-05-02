@@ -6,6 +6,7 @@
  *   - slugifyNome: ID generation from city names
  *   - gerarPopulacao: population formula (range and distribution)
  *   - importCities: creation, no-duplication, coordinate association, updates
+ *   - syncEstadosFromMapa: syncing world.estados from mapa cell estado_id refs
  */
 
 import { test } from 'node:test';
@@ -16,6 +17,7 @@ import {
   parseGridCitiesText,
   gerarPopulacao,
   importCities,
+  syncEstadosFromMapa,
 } from '../src/core/import-cities.js';
 
 // ── slugifyNome ───────────────────────────────────────────────────────────────
@@ -397,4 +399,105 @@ test('importCities new estado has status_economico = "estagnacao"', () => {
   const entries = [{ lat: -23, lon: -46, nome: 'São Paulo' }];
   importCities(world, entries);
   assert.strictEqual(world.estados[0].status_economico, 'estagnacao');
+});
+
+// ── syncEstadosFromMapa ───────────────────────────────────────────────────────
+
+test('syncEstadosFromMapa creates missing estados from mapa cells', () => {
+  const world = {
+    estados: [],
+    mapa: { '-23': { '-46': { tipo: 'terra', estado_id: 'br_sp' } } },
+  };
+  const { created } = syncEstadosFromMapa(world);
+  assert.deepStrictEqual(created, ['br_sp']);
+  assert.strictEqual(world.estados.length, 1);
+  assert.strictEqual(world.estados[0].id, 'br_sp');
+  assert.strictEqual(world.estados[0].nome, 'br_sp');
+});
+
+test('syncEstadosFromMapa does not duplicate existing estados', () => {
+  const world = {
+    estados: [{ id: 'br_sp', nome: 'São Paulo' }],
+    mapa: { '-23': { '-46': { tipo: 'terra', estado_id: 'br_sp' } } },
+  };
+  const { created } = syncEstadosFromMapa(world);
+  assert.deepStrictEqual(created, []);
+  assert.strictEqual(world.estados.length, 1);
+});
+
+test('syncEstadosFromMapa handles multiple unique estado_ids', () => {
+  const world = {
+    estados: [],
+    mapa: {
+      '-23': { '-46': { tipo: 'terra', estado_id: 'br_sp' } },
+      '-22': { '-43': { tipo: 'terra', estado_id: 'br_rj' } },
+    },
+  };
+  const { created } = syncEstadosFromMapa(world);
+  assert.strictEqual(created.length, 2);
+  assert.ok(created.includes('br_sp'));
+  assert.ok(created.includes('br_rj'));
+  assert.strictEqual(world.estados.length, 2);
+});
+
+test('syncEstadosFromMapa ignores cells without estado_id', () => {
+  const world = {
+    estados: [],
+    mapa: { '-23': { '-46': { tipo: 'agua' } } },
+  };
+  const { created } = syncEstadosFromMapa(world);
+  assert.deepStrictEqual(created, []);
+  assert.strictEqual(world.estados.length, 0);
+});
+
+test('syncEstadosFromMapa ignores cells with empty estado_id', () => {
+  const world = {
+    estados: [],
+    mapa: { '-23': { '-46': { tipo: 'terra', estado_id: '' } } },
+  };
+  const { created } = syncEstadosFromMapa(world);
+  assert.deepStrictEqual(created, []);
+  assert.strictEqual(world.estados.length, 0);
+});
+
+test('syncEstadosFromMapa does not create duplicate states for same id in multiple cells', () => {
+  const world = {
+    estados: [],
+    mapa: {
+      '-23': {
+        '-46': { tipo: 'terra', estado_id: 'br_sp' },
+        '-47': { tipo: 'terra', estado_id: 'br_sp' },
+      },
+    },
+  };
+  const { created } = syncEstadosFromMapa(world);
+  assert.deepStrictEqual(created, ['br_sp']);
+  assert.strictEqual(world.estados.length, 1);
+});
+
+test('syncEstadosFromMapa assigns tick_registro from options', () => {
+  const world = {
+    estados: [],
+    mapa: { '0': { '0': { tipo: 'terra', estado_id: 'testland' } } },
+  };
+  syncEstadosFromMapa(world, { tick: 42 });
+  assert.strictEqual(world.estados[0].tick_registro, 42);
+});
+
+test('syncEstadosFromMapa new estado has status_economico = "estagnacao"', () => {
+  const world = {
+    estados: [],
+    mapa: { '0': { '0': { tipo: 'terra', estado_id: 'testland' } } },
+  };
+  syncEstadosFromMapa(world);
+  assert.strictEqual(world.estados[0].status_economico, 'estagnacao');
+});
+
+test('syncEstadosFromMapa new estado has tick_saida = 0', () => {
+  const world = {
+    estados: [],
+    mapa: { '0': { '0': { tipo: 'terra', estado_id: 'testland' } } },
+  };
+  syncEstadosFromMapa(world);
+  assert.strictEqual(world.estados[0].tick_saida, 0);
 });

@@ -192,3 +192,63 @@ export function importCities(world, entries, { rng = Math.random, tick = 0 } = {
 
   return { created, updated };
 }
+
+// ── Sync estados from mapa ────────────────────────────────────────────────────
+
+/**
+ * Ensure every `estado_id` referenced in the mapa has a matching entry in
+ * `world.estados`.  For any ID that does not yet exist, a minimal estado is
+ * created using that ID as both `id` and `nome`.
+ *
+ * This is used after a raw mapa.csv import, where the map cells may reference
+ * estados that were never added to the estados table.
+ *
+ * @param {{ estados: Object[], mapa: Object }} world
+ * @param {{ tick?: number }} [options]
+ * @returns {{ created: string[] }}  IDs of newly-created estados.
+ */
+export function syncEstadosFromMapa(world, { tick = 0 } = {}) {
+  const created = [];
+  const existingIds = new Set(world.estados.map(s => s.id));
+
+  for (const latRow of Object.values(world.mapa)) {
+    for (const cell of Object.values(latRow)) {
+      const id = (cell.estado_id || '').trim();
+      if (!id) continue;
+      if (existingIds.has(id)) continue;
+
+      world.estados.push({
+        id,
+        nome: id,
+        tipo:       'estado',
+        parent_id:  '',
+        descricao:  '',
+        patrimonio: 0,
+        atributos: {
+          populacao:       0,
+          forcas_armadas:  1,
+          cultura:         1,
+          moral_populacao: 3,
+        },
+        impostos: { ir_pf: 0, ir_pj: 0, imp_prod: 0 },
+        financas: {
+          renda_tributaria:     0,
+          salarios_politicos:   0,
+          incentivos_empresas:  0,
+          investimento_cultura: 0,
+          investimento_fa:      0,
+        },
+        infraestrutura: {},
+        tick_registro:    tick,
+        tick_saida:       0,
+        status_economico: 'estagnacao',
+        fornecedores_ids: [],
+        ativos: { patrimonio_geral: 0 },
+      });
+      existingIds.add(id);
+      created.push(id);
+    }
+  }
+
+  return { created };
+}

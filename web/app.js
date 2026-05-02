@@ -47,7 +47,7 @@ import {
   calcMatchScore, calcNewAverage, calcNewMarketValue,
 } from '../src/core/scouts.js';
 import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEGMENTO_DEMAND_PARAMS, STATUS_ECONOMICO, SETOR_ECONOMICO } from '../src/core/economy.js';
-import { parseGridCitiesText, importCities } from '../src/core/import-cities.js';
+import { parseGridCitiesText, importCities, syncEstadosFromMapa } from '../src/core/import-cities.js';
 import {
   CELL_SIZE_STEP,
   VIEWPORT_COLS_STEP, VIEWPORT_ROWS_STEP,
@@ -2215,9 +2215,11 @@ document.getElementById('file-mapa').addEventListener('change', async e => {
     mapaWorld = rowsToMapa(rows);
     world.mapa = mapaWorld;  // keep world.mapa in sync
     const imported = rows.length - ignored;
+    const { created } = syncEstadosFromMapa(world, { tick: getCurrentTick() });
     triggerSave();
+    renderEstadosTable();
     renderMapaGrid();
-    setStatus(`Mapa carregado: ${file.name} — ${imported} células importadas${ignored ? `, ${ignored} ignoradas` : ''}.`);
+    setStatus(`Mapa carregado: ${file.name} — ${imported} células importadas${ignored ? `, ${ignored} ignoradas` : ''}${created.length ? `, ${created.length} estado(s) adicionado(s)` : ''}.`);
   } catch (err) {
     setStatus(`Erro ao importar mapa: ${err.message}`);
   }
