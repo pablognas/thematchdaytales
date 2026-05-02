@@ -493,7 +493,7 @@ function renderPessoasTable() {
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="estado_id" value="${esc(pessoa.estado_id)}" style="width:90px" /></td>
       <td>${statusEconomicoSelect('pessoa', i, pessoa.status_economico)}</td>
       <td class="num"><input class="cell-input num" type="number" min="1" step="1" data-entity="pessoa" data-idx="${i}" data-field="peso" value="${pessoa.peso ?? 1}" style="width:70px" title="Quantidade agregada de pessoas neste grupo" /></td>
-      <td class="num" style="white-space:nowrap">${esc(tickLabel(pessoa.tick_registro))}</td>
+      <td class="num"><input class="cell-input num" data-entity="pessoa" data-idx="${i}" data-field="tick_registro" value="${esc(tickLabel(pessoa.tick_registro))}" style="width:80px" title="Data de registro (M/AAAA)" aria-label="Registro" /></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(pessoa.tick_saida))}</td>
       <td style="white-space:nowrap">
         ${isArchived
@@ -570,7 +570,7 @@ function renderEmpresasTable() {
       <td class="id-cell">${esc(emp.dono_id)}</td>
       <td class="id-cell">${esc(emp.estado_id)}</td>
       <td>${statusEconomicoSelect('empresa', i, emp.status_economico)}</td>
-      <td class="num" style="white-space:nowrap">${esc(tickLabel(emp.tick_registro))}</td>
+      <td class="num"><input class="cell-input num" data-entity="empresa" data-idx="${i}" data-field="tick_registro" value="${esc(tickLabel(emp.tick_registro))}" style="width:80px" title="Data de registro (M/AAAA)" aria-label="Registro" /></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(emp.tick_saida))}</td>
       <td style="white-space:nowrap">
         ${isArchived
@@ -643,7 +643,7 @@ function renderEstadosTable() {
       <td>${statusEconomicoSelect('estado', i, est.status_economico)}</td>
       <td class="num" title="Soma do campo peso das pessoas ativas neste estado">${fmtNum(popTotal)}</td>
       <td style="min-width:140px">${renderInfraBadges(est.infraestrutura)}</td>
-      <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_registro))}</td>
+      <td class="num"><input class="cell-input num" data-entity="estado" data-idx="${i}" data-field="tick_registro" value="${esc(tickLabel(est.tick_registro))}" style="width:80px" title="Data de registro (M/AAAA)" aria-label="Registro" /></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_saida))}</td>
       <td style="white-space:nowrap">
         ${isArchived
@@ -776,7 +776,9 @@ function parseTickInput(val) {
   if (match) {
     const m = parseInt(match[1], 10);
     const y = parseInt(match[2], 10);
+    // If the pattern matched but values are out of range, treat as invalid.
     if (m >= 1 && m <= 12 && y >= TICK_EPOCH_YEAR) return dateToTick(m, y);
+    return 0;
   }
   const n = parseInt(s, 10);
   return n > 0 ? n : 0;
