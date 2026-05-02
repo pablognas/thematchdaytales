@@ -31,6 +31,7 @@
  */
 
 import { setCell, findCellsByEstado } from './map.js';
+import { normalizeEstado } from './world.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -169,6 +170,7 @@ export function importCities(world, entries, { rng = Math.random, tick = 0 } = {
         fornecedores_ids: [],
         ativos: { patrimonio_geral: 0 },
       };
+      normalizeEstado(estado);
       world.estados.push(estado);
       created.push(id);
     }
@@ -217,7 +219,7 @@ export function syncEstadosFromMapa(world, { tick = 0 } = {}) {
       if (!id) continue;
       if (existingIds.has(id)) continue;
 
-      world.estados.push({
+      const newEstado = {
         id,
         nome: id,
         tipo:       'estado',
@@ -244,7 +246,9 @@ export function syncEstadosFromMapa(world, { tick = 0 } = {}) {
         status_economico: 'estagnacao',
         fornecedores_ids: [],
         ativos: { patrimonio_geral: 0 },
-      });
+      };
+      normalizeEstado(newEstado);
+      world.estados.push(newEstado);
       existingIds.add(id);
       created.push(id);
     }

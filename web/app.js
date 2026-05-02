@@ -193,6 +193,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
     if (btn.dataset.tab === 'agendamento') renderScheduleTab();
     if (btn.dataset.tab === 'mapa')        initMapaTab();
+    if (btn.dataset.tab === 'estados')     renderEstadosTable();
     if (btn.dataset.tab === 'jogadores')   renderJogadoresTable();
     if (btn.dataset.tab === 'elenco')      renderElencoTab();
     if (btn.dataset.tab === 'transferencias') populateJogadorTransferSelects();
@@ -2216,8 +2217,8 @@ document.getElementById('file-mapa').addEventListener('change', async e => {
     world.mapa = mapaWorld;  // keep world.mapa in sync
     const imported = rows.length - ignored;
     const { created } = syncEstadosFromMapa(world, { tick: getCurrentTick() });
-    triggerSave();
     renderEstadosTable();
+    triggerSave();
     renderMapaGrid();
     setStatus(`Mapa carregado: ${file.name} — ${imported} células importadas${ignored ? `, ${ignored} ignoradas` : ''}${created.length ? `, ${created.length} estado(s) adicionado(s)` : ''}.`);
   } catch (err) {
@@ -2240,8 +2241,8 @@ document.getElementById('file-import-cities').addEventListener('change', async e
     }
     const { created, updated } = importCities(world, entries, { tick: getCurrentTick() });
     mapaWorld = world.mapa;
-    triggerSave();
     renderEstadosTable();
+    triggerSave();
     renderMapaGrid();
     setStatus(
       `🏙 Cidades importadas: ${created.length} criada(s), ${updated.length} coordenada(s) associada(s).`

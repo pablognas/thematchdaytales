@@ -229,7 +229,7 @@ export function empresasToRows(empresas) {
 export function rowsToEstados(rows) {
   return rows.map(r => {
     const patrimonio = toNum(r.patrimonio, 0);
-    return {
+    return normalizeEstado({
       id: r.id,
       nome: r.nome,
       tipo:      r.tipo      || '',
@@ -273,7 +273,7 @@ export function rowsToEstados(rows) {
       status_economico: r.status_economico || 'estagnacao',
       fornecedores_ids: toIdList(r.fornecedores_ids),
       ativos: { patrimonio_geral: patrimonio },
-    };
+    });
   });
 }
 
@@ -283,42 +283,47 @@ export function rowsToEstados(rows) {
  * @returns {Object[]}
  */
 export function estadosToRows(estados) {
-  return estados.map(s => ({
-    id: s.id,
-    nome: s.nome,
-    tipo:      s.tipo      || '',
-    parent_id: s.parent_id || '',
-    descricao: s.descricao || '',
-    patrimonio:           Math.round(s.patrimonio || 0),
-    populacao:            s.atributos.populacao,
-    forcas_armadas:       s.atributos.forcas_armadas,
-    cultura:              s.atributos.cultura,
-    moral_populacao:      s.atributos.moral_populacao,
-    renda_tributaria:     Math.round(s.financas.renda_tributaria),
-    ir_pf:                s.impostos.ir_pf,
-    ir_pj:                s.impostos.ir_pj,
-    imp_prod:             s.impostos.imp_prod,
-    salarios_politicos:   s.financas.salarios_politicos,
-    incentivos_empresas:  s.financas.incentivos_empresas,
-    investimento_cultura: s.financas.investimento_cultura,
-    investimento_fa:      s.financas.investimento_fa,
-    infra_creche:            s.infraestrutura?.creche            ? 1 : 0,
-    infra_escola_primaria:   s.infraestrutura?.escola_primaria   ? 1 : 0,
-    infra_escola_secundaria: s.infraestrutura?.escola_secundaria ? 1 : 0,
-    infra_ensino_medio:      s.infraestrutura?.ensino_medio      ? 1 : 0,
-    infra_universidade:      s.infraestrutura?.universidade      ? 1 : 0,
-    infra_rodoviaria:        s.infraestrutura?.rodoviaria        ? 1 : 0,
-    infra_aeroporto:         s.infraestrutura?.aeroporto         ? 1 : 0,
-    infra_porto:             s.infraestrutura?.porto             ? 1 : 0,
-    infra_estacao_trem:      s.infraestrutura?.estacao_trem      ? 1 : 0,
-    infra_metro:             s.infraestrutura?.metro             ? 1 : 0,
-    infra_onibus_municipais: s.infraestrutura?.onibus_municipais ? 1 : 0,
-    infra_centro_comercial:  s.infraestrutura?.centro_comercial  ? 1 : 0,
-    tick_registro:        s.tick_registro || 0,
-    tick_saida:           s.tick_saida    || 0,
-    status_economico:     s.status_economico || 'estagnacao',
-    fornecedores_ids:     JSON.stringify(s.fornecedores_ids || []),
-  }));
+  return estados.map(s => {
+    // normalizeEstado ensures all nested sub-objects exist before we access them,
+    // preventing TypeError when a state was created by older code or an external import.
+    const n = normalizeEstado(s);
+    return {
+      id: n.id,
+      nome: n.nome,
+      tipo:      n.tipo      || '',
+      parent_id: n.parent_id || '',
+      descricao: n.descricao || '',
+      patrimonio:           Math.round(n.patrimonio || 0),
+      populacao:            n.atributos.populacao,
+      forcas_armadas:       n.atributos.forcas_armadas,
+      cultura:              n.atributos.cultura,
+      moral_populacao:      n.atributos.moral_populacao,
+      renda_tributaria:     Math.round(n.financas.renda_tributaria),
+      ir_pf:                n.impostos.ir_pf,
+      ir_pj:                n.impostos.ir_pj,
+      imp_prod:             n.impostos.imp_prod,
+      salarios_politicos:   n.financas.salarios_politicos,
+      incentivos_empresas:  n.financas.incentivos_empresas,
+      investimento_cultura: n.financas.investimento_cultura,
+      investimento_fa:      n.financas.investimento_fa,
+      infra_creche:            n.infraestrutura?.creche            ? 1 : 0,
+      infra_escola_primaria:   n.infraestrutura?.escola_primaria   ? 1 : 0,
+      infra_escola_secundaria: n.infraestrutura?.escola_secundaria ? 1 : 0,
+      infra_ensino_medio:      n.infraestrutura?.ensino_medio      ? 1 : 0,
+      infra_universidade:      n.infraestrutura?.universidade      ? 1 : 0,
+      infra_rodoviaria:        n.infraestrutura?.rodoviaria        ? 1 : 0,
+      infra_aeroporto:         n.infraestrutura?.aeroporto         ? 1 : 0,
+      infra_porto:             n.infraestrutura?.porto             ? 1 : 0,
+      infra_estacao_trem:      n.infraestrutura?.estacao_trem      ? 1 : 0,
+      infra_metro:             n.infraestrutura?.metro             ? 1 : 0,
+      infra_onibus_municipais: n.infraestrutura?.onibus_municipais ? 1 : 0,
+      infra_centro_comercial:  n.infraestrutura?.centro_comercial  ? 1 : 0,
+      tick_registro:        n.tick_registro || 0,
+      tick_saida:           n.tick_saida    || 0,
+      status_economico:     n.status_economico || 'estagnacao',
+      fornecedores_ids:     JSON.stringify(n.fornecedores_ids || []),
+    };
+  });
 }
 
 // ── Clubes ─────────────────────────────────────────────────────────────────
@@ -469,6 +474,64 @@ export function reconcilePatrimonio(entity, type) {
   } else {
     entity.patrimonio = sum;
   }
+}
+
+/**
+ * Ensure all required display and computation fields are present on an estado
+ * object.  Safe to call on objects created by any code path — missing sub-objects
+ * are filled with neutral defaults so that renderEstadosTable, estadosToRows, and
+ * engine functions never throw on undefined nested properties.
+ *
+ * This is the canonical fix for the "estados importados não são exibidos" issue:
+ * states added to world.estados via any path (import, sync, manual) pass through
+ * this guard before being persisted or rendered.
+ *
+ * @param {Object} est  Estado object (mutated in-place and returned).
+ * @returns {Object}    The same object with all required fields ensured.
+ */
+export function normalizeEstado(est) {
+  if (!est.atributos) {
+    est.atributos = { populacao: 0, forcas_armadas: 1, cultura: 1, moral_populacao: 3 };
+  } else {
+    est.atributos.populacao       = est.atributos.populacao       ?? 0;
+    est.atributos.forcas_armadas  = est.atributos.forcas_armadas  ?? 1;
+    est.atributos.cultura         = est.atributos.cultura         ?? 1;
+    est.atributos.moral_populacao = est.atributos.moral_populacao ?? 3;
+  }
+  if (!est.financas) {
+    est.financas = {
+      renda_tributaria:     0,
+      salarios_politicos:   0,
+      incentivos_empresas:  0,
+      investimento_cultura: 0,
+      investimento_fa:      0,
+    };
+  } else {
+    est.financas.renda_tributaria     = est.financas.renda_tributaria     ?? 0;
+    est.financas.salarios_politicos   = est.financas.salarios_politicos   ?? 0;
+    est.financas.incentivos_empresas  = est.financas.incentivos_empresas  ?? 0;
+    est.financas.investimento_cultura = est.financas.investimento_cultura ?? 0;
+    est.financas.investimento_fa      = est.financas.investimento_fa      ?? 0;
+  }
+  if (!est.impostos) {
+    est.impostos = { ir_pf: 0, ir_pj: 0, imp_prod: 0 };
+  } else {
+    est.impostos.ir_pf    = est.impostos.ir_pf    ?? 0;
+    est.impostos.ir_pj    = est.impostos.ir_pj    ?? 0;
+    est.impostos.imp_prod = est.impostos.imp_prod ?? 0;
+  }
+  if (!est.infraestrutura) est.infraestrutura = {};
+  if (!Array.isArray(est.fornecedores_ids)) est.fornecedores_ids = [];
+  if (!est.ativos) est.ativos = {};
+  if (est.tick_saida    === undefined || est.tick_saida    === null) est.tick_saida    = 0;
+  if (est.tick_registro === undefined || est.tick_registro === null) est.tick_registro = 0;
+  if (!est.status_economico) est.status_economico = 'estagnacao';
+  est.nome      = est.nome      ?? '';
+  est.tipo      = est.tipo      ?? '';
+  est.parent_id = est.parent_id ?? '';
+  est.descricao = est.descricao ?? '';
+  est.patrimonio = est.patrimonio ?? 0;
+  return est;
 }
 
 /**
