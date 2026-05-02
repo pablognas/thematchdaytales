@@ -153,6 +153,28 @@ test('empresasToRows round-trip preserves infraestrutura', () => {
   assert.strictEqual(loaded[0].infraestrutura, 'aeroporto');
 });
 
+// ── rowsToEmpresas / empresasToRows round-trip with setor_economico ───────────
+
+test('rowsToEmpresas defaults setor_economico to "servicos" when not present', () => {
+  const rows = [{ id: 'e1', nome: 'Test', dono_id: '', estado_id: '' }];
+  const empresas = rowsToEmpresas(rows);
+  assert.strictEqual(empresas[0].setor_economico, 'servicos');
+});
+
+test('rowsToEmpresas preserves setor_economico value from row', () => {
+  const rows = [{ id: 'e1', nome: 'Test', dono_id: '', estado_id: '', setor_economico: 'agricola' }];
+  const empresas = rowsToEmpresas(rows);
+  assert.strictEqual(empresas[0].setor_economico, 'agricola');
+});
+
+test('empresasToRows round-trip preserves setor_economico', () => {
+  const emp = { ...makeEmpresa(), setor_economico: 'industrial' };
+  const rows = empresasToRows([emp]);
+  assert.strictEqual(rows[0].setor_economico, 'industrial');
+  const loaded = rowsToEmpresas(rows);
+  assert.strictEqual(loaded[0].setor_economico, 'industrial');
+});
+
 // ── rowsToEstados / estadosToRows round-trip with infra flags ─────────────────
 
 test('rowsToEstados defaults all infra flags to false when not present', () => {
