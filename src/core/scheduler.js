@@ -27,6 +27,17 @@ export function advanceTick() {
   return next;
 }
 
+/**
+ * Navigate to any tick (past or future).
+ * @param {number} tick  Target tick (≥1). Values < 1 are clamped to 1.
+ * @returns {number} The tick that was set.
+ */
+export function goToTick(tick) {
+  const target = Math.max(1, Math.floor(tick));
+  setCurrentTick(target);
+  return target;
+}
+
 // ── Scheduled conversions ─────────────────────────────────────────────────
 
 function loadConversions() {
