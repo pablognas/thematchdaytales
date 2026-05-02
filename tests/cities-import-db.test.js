@@ -37,7 +37,6 @@ import {
   parseGridCitiesText,
   importCities,
   syncEstadosFromMapa,
-  slugifyNome,
 } from '../src/core/import-cities.js';
 
 // ── Setup helpers ─────────────────────────────────────────────────────────────
@@ -159,7 +158,6 @@ test('importCities creates all 5 mapa cells from sample data', () => {
   const entries = parseGridCitiesText(SAMPLE_TXT);
   importCities(world, entries);
 
-  const { updated } = importCities({ estados: world.estados, mapa: world.mapa }, []);
   // Count cells with estado_id
   let cellCount = 0;
   for (const row of Object.values(world.mapa)) {
