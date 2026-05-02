@@ -36,7 +36,8 @@ import {
   transferFundos, transferPatrimonio,
 } from '../src/core/engine.js';
 import {
-  getCurrentTick, setCurrentTick, advanceTick, goToTick,
+  getCurrentTick, setCurrentTick, advanceTick,
+  TICK_EPOCH_YEAR, tickToDate, dateToTick, tickLabel,
   scheduleConversion, unscheduleConversion, getAllScheduledConversions, getConversionsForTick, clearConversionsForTick,
   scheduleInjection, removeInjection, getAllScheduledInjections, getInjectionsForTick, clearInjectionsForTick,
   removeAllConversionsForEntity, removeAllInjectionsForEntity,
@@ -144,27 +145,8 @@ function renderInfraBadges(infraestrutura) {
     .join('');
 }
 
-// ── Tick ↔ Date helpers ───────────────────────────────────────────────────────
-// Tick 1 = January 1850. Each tick represents one month.
-const TICK_EPOCH_YEAR = 1850;
-
-/** Convert a tick number (≥1) to {month, year}. Tick 1 = Jan 1850. */
-function tickToDate(tick) {
-  const offset = Math.max(0, tick - 1);
-  return { month: (offset % 12) + 1, year: TICK_EPOCH_YEAR + Math.floor(offset / 12) };
-}
-
-/** Convert month (1–12) and year (≥1850) to a tick number. */
-function dateToTick(month, year) {
-  return (year - TICK_EPOCH_YEAR) * 12 + month;
-}
-
-/** Format a tick as "M/YYYY" string, or "—" if zero/unset. */
-function tickLabel(tick) {
-  if (!tick || tick <= 0) return '—';
-  const { month, year } = tickToDate(tick);
-  return `${month}/${year}`;
-}
+// ── Tick helpers (imported from scheduler.js) ─────────────────────────────────
+// TICK_EPOCH_YEAR, tickToDate, dateToTick, tickLabel are imported from scheduler.js
 
 /** Read the scheduled-conversion target tick from the month+year inputs. */
 function getSchedTick() {
@@ -270,15 +252,6 @@ document.getElementById('btn-tick').addEventListener('click', async () => {
 });
 
 // ── Ir para Tick ─────────────────────────────────────────────────────────────
-document.getElementById('btn-goto-tick').addEventListener('click', () => {
-  const m = parseInt(document.getElementById('goto-tick-month').value) || 1;
-  const y = parseInt(document.getElementById('goto-tick-year').value)  || TICK_EPOCH_YEAR;
-  const target = dateToTick(m, y);
-  goToTick(target);
-  updateTickCounter();
-  setStatus(`🕐 Tick navegado para ${tickLabel(target)}.`);
-});
-
 // ── Export CSVs ─────────────────────────────────────────────────────────────
 document.getElementById('btn-export').addEventListener('click', () => {
   if (!world.pessoas.length && !world.empresas.length && !world.estados.length) {
@@ -520,7 +493,7 @@ function renderPessoasTable() {
       <td><input class="cell-input" data-entity="pessoa" data-idx="${i}" data-field="estado_id" value="${esc(pessoa.estado_id)}" style="width:90px" /></td>
       <td>${statusEconomicoSelect('pessoa', i, pessoa.status_economico)}</td>
       <td class="num"><input class="cell-input num" type="number" min="1" step="1" data-entity="pessoa" data-idx="${i}" data-field="peso" value="${pessoa.peso ?? 1}" style="width:70px" title="Quantidade agregada de pessoas neste grupo" /></td>
-      <td class="num" style="white-space:nowrap">${esc(tickLabel(pessoa.tick_registro))}</td>
+      <td class="num"><input class="cell-input num" data-entity="pessoa" data-idx="${i}" data-field="tick_registro" value="${esc(tickLabel(pessoa.tick_registro))}" style="width:80px" title="Data de registro (M/AAAA)" aria-label="Registro" /></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(pessoa.tick_saida))}</td>
       <td style="white-space:nowrap">
         ${isArchived
@@ -597,7 +570,7 @@ function renderEmpresasTable() {
       <td class="id-cell">${esc(emp.dono_id)}</td>
       <td class="id-cell">${esc(emp.estado_id)}</td>
       <td>${statusEconomicoSelect('empresa', i, emp.status_economico)}</td>
-      <td class="num" style="white-space:nowrap">${esc(tickLabel(emp.tick_registro))}</td>
+      <td class="num"><input class="cell-input num" data-entity="empresa" data-idx="${i}" data-field="tick_registro" value="${esc(tickLabel(emp.tick_registro))}" style="width:80px" title="Data de registro (M/AAAA)" aria-label="Registro" /></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(emp.tick_saida))}</td>
       <td style="white-space:nowrap">
         ${isArchived
@@ -670,7 +643,7 @@ function renderEstadosTable() {
       <td>${statusEconomicoSelect('estado', i, est.status_economico)}</td>
       <td class="num" title="Soma do campo peso das pessoas ativas neste estado">${fmtNum(popTotal)}</td>
       <td style="min-width:140px">${renderInfraBadges(est.infraestrutura)}</td>
-      <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_registro))}</td>
+      <td class="num"><input class="cell-input num" data-entity="estado" data-idx="${i}" data-field="tick_registro" value="${esc(tickLabel(est.tick_registro))}" style="width:80px" title="Data de registro (M/AAAA)" aria-label="Registro" /></td>
       <td class="num" style="white-space:nowrap">${esc(tickLabel(est.tick_saida))}</td>
       <td style="white-space:nowrap">
         ${isArchived
@@ -784,7 +757,36 @@ const FIELD_SETTERS = {
   posicao:           (e, v) => { e.posicao            = v; },
   clube:             (e, v) => { e.clube              = v; },
   clube_emprestador: (e, v) => { e.clube_emprestador  = v; },
+  // Registration date — accepts "M/YYYY" text input or raw tick integer
+  tick_registro: (e, v) => {
+    const parsed = parseTickInput(v);
+    if (parsed > 0) e.tick_registro = parsed;
+  },
 };
+
+/**
+ * Parse a tick from user-entered text.
+ *
+ * Accepted formats:
+ *   - "M/YYYY"  — e.g. "1/1850", "12/2024" (month 1–12, year ≥ 1850)
+ *   - raw tick  — e.g. "601" (positive integer)
+ *
+ * @param {string|number} val  The raw input value.
+ * @returns {number}  Parsed tick (≥1) or 0 if the input is invalid/empty.
+ */
+function parseTickInput(val) {
+  const s = String(val).trim();
+  const match = s.match(/^(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const m = parseInt(match[1], 10);
+    const y = parseInt(match[2], 10);
+    // If the pattern matched but values are out of range, treat as invalid.
+    if (m >= 1 && m <= 12 && y >= TICK_EPOCH_YEAR) return dateToTick(m, y);
+    return 0;
+  }
+  const n = parseInt(s, 10);
+  return n > 0 ? n : 0;
+}
 
 /** Apply a known field update to an entity. Ignores unknown paths. */
 function setEntityField(entity, field, value) {

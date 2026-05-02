@@ -67,21 +67,6 @@
       white-space: nowrap;
     }
 
-    .tick-goto {
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-    }
-    .tick-goto input[type="number"] {
-      background: #111827;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      color: var(--fg);
-      padding: 0.25rem 0.35rem;
-      font-size: 0.8rem;
-      text-align: center;
-    }
-
     /* ── Archived entity rows ─────────────────────────────────────────────── */
     tr.entity-archived { opacity: 0.5; background: rgba(248, 113, 113, 0.06); }
 
@@ -613,13 +598,6 @@
   <div class="tick-bar">
     <div class="tick-display">Tick <span id="tick-counter">1/1850</span></div>
     <button id="btn-tick"      class="btn-green" >▶ Rodar Tick</button>
-    <div class="tick-goto" title="Navegar para um tick específico (passado ou futuro)">
-      <label for="goto-tick-month" style="font-size:0.8rem;color:var(--muted);white-space:nowrap">Ir para:</label>
-      <input type="number" id="goto-tick-month" min="1" max="12" value="1" style="width:44px" aria-label="Mês destino" />
-      <span style="color:var(--muted)">/</span>
-      <input type="number" id="goto-tick-year" min="1850" value="1850" style="width:68px" aria-label="Ano destino" />
-      <button id="btn-goto-tick" class="btn-blue btn-sm">⏩ Ir para Tick</button>
-    </div>
     <button id="btn-export"    class="btn-blue"  >⬇ Exportar CSV</button>
     <button id="btn-export-db" class="btn-blue"  >💾 Backup SQLite</button>
     <label class="btn-blue btn-file-upload" title="Restaurar um arquivo .sqlite de backup">
