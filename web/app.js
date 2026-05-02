@@ -48,6 +48,10 @@ import {
 } from '../src/core/scouts.js';
 import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEGMENTO_DEMAND_PARAMS, STATUS_ECONOMICO, SETOR_ECONOMICO } from '../src/core/economy.js';
 import { parseGridCitiesText, importCities } from '../src/core/import-cities.js';
+import {
+  CELL_SIZE_STEP,
+  clampCellSize, saveCellSize, loadCellSize,
+} from '../src/core/mapa-vp.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
 let world  = { pessoas: [], empresas: [], estados: [], clubes: [], mapa: {} };
@@ -86,7 +90,7 @@ let jogadoresClubeFilter = '';
 let mostrarArquivados = false;
 
 // Viewport: center + dimensions (columns = lon count, rows = lat count) + cell pixel size
-let mapaVp = { latCenter: 0, lonCenter: 0, rows: 30, cols: 60, cellSize: 12 };
+let mapaVp = { latCenter: 0, lonCenter: 0, rows: 30, cols: 60, cellSize: loadCellSize() };
 
 // Brush state
 let mapaBrushDown   = false;  // is mouse button held on the grid?
@@ -2288,13 +2292,25 @@ document.getElementById('mapa-pan-e').addEventListener('click', () => {
 });
 
 document.getElementById('mapa-zoom-in').addEventListener('click', () => {
-  mapaVp.cellSize = Math.min(32, mapaVp.cellSize + 4);
+  mapaVp.cellSize = clampCellSize(mapaVp.cellSize + CELL_SIZE_STEP);
+  saveCellSize(mapaVp.cellSize);
   renderMapaGrid();
 });
 document.getElementById('mapa-zoom-out').addEventListener('click', () => {
-  mapaVp.cellSize = Math.max(4, mapaVp.cellSize - 4);
+  mapaVp.cellSize = clampCellSize(mapaVp.cellSize - CELL_SIZE_STEP);
+  saveCellSize(mapaVp.cellSize);
   renderMapaGrid();
 });
+
+// ── Scroll-wheel zoom (Ctrl + wheel) on the map grid ─────────────────────────
+document.getElementById('mapa-grid').addEventListener('wheel', e => {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? CELL_SIZE_STEP : -CELL_SIZE_STEP;
+  mapaVp.cellSize = clampCellSize(mapaVp.cellSize + delta);
+  saveCellSize(mapaVp.cellSize);
+  renderMapaGrid();
+}, { passive: false });
 
 // ── Mapa brush controls ───────────────────────────────────────────────────────
 
