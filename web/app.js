@@ -146,7 +146,7 @@ function renderInfraBadges(infraestrutura) {
 }
 
 // ── Tick helpers (imported from scheduler.js) ─────────────────────────────────
-// TICK_EPOCH_YEAR, tickToDate, dateToTick, tickLabel are re-exported from scheduler.js
+// TICK_EPOCH_YEAR, tickToDate, dateToTick, tickLabel are imported from scheduler.js
 
 /** Read the scheduled-conversion target tick from the month+year inputs. */
 function getSchedTick() {
@@ -765,10 +765,14 @@ const FIELD_SETTERS = {
 };
 
 /**
- * Parse a tick from a "M/YYYY" string or a raw integer string.
- * Returns 0 for invalid/empty input.
- * @param {string|number} val
- * @returns {number}
+ * Parse a tick from user-entered text.
+ *
+ * Accepted formats:
+ *   - "M/YYYY"  — e.g. "1/1850", "12/2024" (month 1–12, year ≥ 1850)
+ *   - raw tick  — e.g. "601" (positive integer)
+ *
+ * @param {string|number} val  The raw input value.
+ * @returns {number}  Parsed tick (≥1) or 0 if the input is invalid/empty.
  */
 function parseTickInput(val) {
   const s = String(val).trim();
