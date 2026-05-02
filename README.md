@@ -348,6 +348,16 @@ Para cada linha do arquivo:
 
 Na aba **🧭 Mapa**, clique em **🏙 Importar Cidades** e selecione o arquivo `.txt`. A barra de status exibirá quantos estados foram criados e quantas coordenadas foram associadas ou atualizadas.
 
+> **Atenção:** O arquivo de importação de cidades **não é um CSV** — é um arquivo texto simples no formato `(x,y) -> Nome`. Após a importação, as cidades criadas ficam visíveis na aba **📋 Estados** (com `tipo = cidade`).
+
+**Exemplo com coordenadas positivas (Ártico Russo):**
+
+```
+(170,70) -> Pevek
+(178,65) -> Anadyr
+(179,63) -> Beringovskiy
+```
+
 ### Uso programático (ESM)
 
 ```js
