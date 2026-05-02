@@ -37,7 +37,6 @@ import {
 } from '../src/core/engine.js';
 import {
   getCurrentTick, setCurrentTick, advanceTick,
-  TICK_EPOCH_YEAR, tickToDate, dateToTick, tickLabel,
   scheduleConversion, unscheduleConversion, getAllScheduledConversions, getConversionsForTick, clearConversionsForTick,
   scheduleInjection, removeInjection, getAllScheduledInjections, getInjectionsForTick, clearInjectionsForTick,
   removeAllConversionsForEntity, removeAllInjectionsForEntity,
@@ -145,8 +144,29 @@ function renderInfraBadges(infraestrutura) {
     .join('');
 }
 
-// ── Tick helpers (imported from scheduler.js) ─────────────────────────────────
-// TICK_EPOCH_YEAR, tickToDate, dateToTick, tickLabel are imported from scheduler.js
+// ── Tick ↔ Date helpers ───────────────────────────────────────────────────────
+// Tick 1 = January 1850. Each tick represents one month.
+// These are also exported from scheduler.js (for tests), but kept local here
+// so that app.js does not depend on scheduler.js cache state in the browser.
+const TICK_EPOCH_YEAR = 1850;
+
+/** Convert a tick number (≥1) to {month, year}. Tick 1 = Jan 1850. */
+function tickToDate(tick) {
+  const offset = Math.max(0, tick - 1);
+  return { month: (offset % 12) + 1, year: TICK_EPOCH_YEAR + Math.floor(offset / 12) };
+}
+
+/** Convert month (1–12) and year (≥1850) to a tick number. */
+function dateToTick(month, year) {
+  return (year - TICK_EPOCH_YEAR) * 12 + month;
+}
+
+/** Format a tick as "M/YYYY" string, or "—" if zero/unset. */
+function tickLabel(tick) {
+  if (!tick || tick <= 0) return '—';
+  const { month, year } = tickToDate(tick);
+  return `${month}/${year}`;
+}
 
 /** Read the scheduled-conversion target tick from the month+year inputs. */
 function getSchedTick() {
@@ -251,7 +271,6 @@ document.getElementById('btn-tick').addEventListener('click', async () => {
   }
 });
 
-// ── Ir para Tick ─────────────────────────────────────────────────────────────
 // ── Export CSVs ─────────────────────────────────────────────────────────────
 document.getElementById('btn-export').addEventListener('click', () => {
   if (!world.pessoas.length && !world.empresas.length && !world.estados.length) {
