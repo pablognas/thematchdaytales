@@ -277,6 +277,23 @@ test('estadosToRows + rowsToEstados round-trip for a bare estado produces valid 
   assert.ok(est.financas,                    'financas should exist after round-trip');
 });
 
+test('atributos.populacao round-trips correctly through estadosToRows + rowsToEstados', () => {
+  const est = {
+    id: 'br', nome: 'Brasil',
+    atributos: { populacao: 210000000, forcas_armadas: 5, cultura: 4, moral_populacao: 3 },
+    financas:  { renda_tributaria: 0, salarios_politicos: 0, incentivos_empresas: 0, investimento_cultura: 0, investimento_fa: 0 },
+    impostos:  { ir_pf: 0, ir_pj: 0, imp_prod: 0 },
+    infraestrutura: {}, tick_registro: 1, tick_saida: 0,
+    status_economico: 'estagnacao', fornecedores_ids: [], ativos: {}, patrimonio: 0,
+    tipo: 'pais', parent_id: '', descricao: '',
+  };
+  const rows   = estadosToRows([est]);
+  const loaded = rowsToEstados(rows);
+
+  assert.strictEqual(loaded[0].atributos.populacao, 210000000,
+    'atributos.populacao should round-trip correctly through estadosToRows + rowsToEstados');
+});
+
 // ── The "estados appear in transfers but not in tab" scenario ─────────────────
 //
 // This set of tests directly validates the root cause: states that exist in
