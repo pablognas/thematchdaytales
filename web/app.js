@@ -773,7 +773,7 @@ const FIELD_SETTERS = {
   parent_id: (e, v) => { e.parent_id = v; },
   descricao: (e, v) => { e.descricao = v; },
   // Estado population (stored in atributos.populacao)
-  populacao: (e, v) => { if (e.atributos) e.atributos.populacao = Math.max(0, Math.round(Number(v) || 0)); },
+  populacao: (e, v) => { if (!e.atributos) e.atributos = {}; e.atributos.populacao = Math.max(0, Math.round(Number(v) || 0)); },
   // Pessoa jogador stats (used by jogadores tab)
   nota_scouting:     (e, v) => { e.nota_scouting     = v; },
   valor_mercado:     (e, v) => { e.valor_mercado      = Math.max(0, v); },
