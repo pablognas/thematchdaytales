@@ -50,7 +50,10 @@ import { simulateEconomy, simulateEconomyBySegment, SEGMENTO, SEGMENTO_META, SEG
 import { parseGridCitiesText, importCities } from '../src/core/import-cities.js';
 import {
   CELL_SIZE_STEP,
+  VIEWPORT_COLS_STEP, VIEWPORT_ROWS_STEP,
   clampCellSize, saveCellSize, loadCellSize,
+  clampViewportCols, saveViewportCols, loadViewportCols,
+  clampViewportRows, saveViewportRows, loadViewportRows,
 } from '../src/core/mapa-vp.js';
 
 // ── App state ──────────────────────────────────────────────────────────────
@@ -90,7 +93,7 @@ let jogadoresClubeFilter = '';
 let mostrarArquivados = false;
 
 // Viewport: center + dimensions (columns = lon count, rows = lat count) + cell pixel size
-let mapaVp = { latCenter: 0, lonCenter: 0, rows: 30, cols: 60, cellSize: loadCellSize() };
+let mapaVp = { latCenter: 0, lonCenter: 0, rows: loadViewportRows(), cols: loadViewportCols(), cellSize: loadCellSize() };
 
 // Brush state
 let mapaBrushDown   = false;  // is mouse button held on the grid?
@@ -2299,6 +2302,22 @@ document.getElementById('mapa-zoom-in').addEventListener('click', () => {
 document.getElementById('mapa-zoom-out').addEventListener('click', () => {
   mapaVp.cellSize = clampCellSize(mapaVp.cellSize - CELL_SIZE_STEP);
   saveCellSize(mapaVp.cellSize);
+  renderMapaGrid();
+});
+
+// ── Cell-density zoom (more/fewer visible cells, cell pixel size unchanged) ──
+document.getElementById('mapa-cells-more').addEventListener('click', () => {
+  mapaVp.cols = clampViewportCols(mapaVp.cols + VIEWPORT_COLS_STEP);
+  mapaVp.rows = clampViewportRows(mapaVp.rows + VIEWPORT_ROWS_STEP);
+  saveViewportCols(mapaVp.cols);
+  saveViewportRows(mapaVp.rows);
+  renderMapaGrid();
+});
+document.getElementById('mapa-cells-less').addEventListener('click', () => {
+  mapaVp.cols = clampViewportCols(mapaVp.cols - VIEWPORT_COLS_STEP);
+  mapaVp.rows = clampViewportRows(mapaVp.rows - VIEWPORT_ROWS_STEP);
+  saveViewportCols(mapaVp.cols);
+  saveViewportRows(mapaVp.rows);
   renderMapaGrid();
 });
 
