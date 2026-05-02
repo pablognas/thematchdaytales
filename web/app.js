@@ -2656,6 +2656,15 @@ async function initApp() {
     // Sync mapa editor state from the persisted world map
     if (world.mapa && Object.keys(world.mapa).length > 0) {
       mapaWorld = world.mapa;
+      // Ensure every estado_id referenced in the mapa has a matching estado entry.
+      // This handles databases created before the mapa→estados sync was introduced,
+      // as well as any case where the estados table got out of sync with the mapa.
+      const { created } = syncEstadosFromMapa(world, { tick: getCurrentTick() });
+      if (created.length) {
+        saveWorldToDb(db, world);
+        // Persist the updated DB bytes to IndexedDB so the fix survives a page reload.
+        scheduleAutoSave(db);
+      }
     }
     renderAll();
     setStatus(
