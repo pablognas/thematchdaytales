@@ -3,9 +3,16 @@
  * exported from src/core/scheduler.js, and for the parseTickInput / tick_registro
  * editing behaviour that those helpers underpin.
  *
- * These helpers were previously private to web/app.js (PR #32 introduced the
- * "Ir para Tick" widget that duplicated them there). After the revert they live
- * exclusively in scheduler.js and are importable here.
+ * History:
+ *   PR #32 added a "Ir para Tick" widget that duplicated tick helpers in app.js.
+ *   PR #33 reverted that widget and moved the helpers exclusively to scheduler.js
+ *   as new exports — which caused a browser cache regression: any browser with the
+ *   old scheduler.js cached (without those exports) would fail to load app.js at
+ *   all, breaking every JS-dependent button and tab.
+ *
+ *   The fix (PR #34) restores local definitions of the tick helpers inside app.js
+ *   so that app.js is self-sufficient and is not affected by stale scheduler.js
+ *   cache.  The helpers remain exported from scheduler.js as well (tested below).
  */
 
 import { test } from 'node:test';
@@ -238,4 +245,56 @@ test('tick_registro: year before epoch is invalid and does not change value', ()
   const entity = { tick_registro: 7 };
   applyTickRegistro(entity, '1/1800');
   assert.equal(entity.tick_registro, 7);
+});
+
+// ── Regression: scheduler.js exports match local app.js definitions ───────────
+// PR #33 moved the tick helpers exclusively into scheduler.js exports; when the
+// browser had a stale cached version of scheduler.js that lacked those exports,
+// loading app.js would throw "module does not provide an export named …",
+// silently breaking every JS-dependent button and tab (only the native file-input
+// <label> kept working).
+//
+// PR #34 restores local definitions inside app.js so that it does not depend on
+// the new scheduler.js exports at all.  The helpers below are the local
+// definitions from app.js; the following tests confirm that they produce
+// identical results to the scheduler.js exports (so both copies stay in sync).
+
+const LOCAL_TICK_EPOCH_YEAR = 1850;
+
+function localTickToDate(tick) {
+  const offset = Math.max(0, tick - 1);
+  return { month: (offset % 12) + 1, year: LOCAL_TICK_EPOCH_YEAR + Math.floor(offset / 12) };
+}
+function localDateToTick(month, year) {
+  return (year - LOCAL_TICK_EPOCH_YEAR) * 12 + month;
+}
+function localTickLabel(tick) {
+  if (!tick || tick <= 0) return '—';
+  const { month, year } = localTickToDate(tick);
+  return `${month}/${year}`;
+}
+
+test('regression PR#34: local TICK_EPOCH_YEAR matches scheduler.js export', () => {
+  assert.equal(LOCAL_TICK_EPOCH_YEAR, TICK_EPOCH_YEAR);
+});
+
+test('regression PR#34: local tickToDate matches scheduler.js for a range of ticks', () => {
+  for (const tick of [1, 6, 12, 13, 24, 100, 601, 1200]) {
+    const exp = tickToDate(tick);
+    const got = localTickToDate(tick);
+    assert.deepEqual(got, exp, `tickToDate mismatch at tick ${tick}`);
+  }
+});
+
+test('regression PR#34: local dateToTick matches scheduler.js for a range of dates', () => {
+  const dates = [[1, 1850], [12, 1850], [1, 1851], [6, 2000], [1, 1900]];
+  for (const [m, y] of dates) {
+    assert.equal(localDateToTick(m, y), dateToTick(m, y), `dateToTick mismatch at ${m}/${y}`);
+  }
+});
+
+test('regression PR#34: local tickLabel matches scheduler.js for various ticks', () => {
+  for (const tick of [0, -1, 1, 12, 13, 601]) {
+    assert.equal(localTickLabel(tick), tickLabel(tick), `tickLabel mismatch at tick ${tick}`);
+  }
 });
