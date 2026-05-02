@@ -36,7 +36,7 @@ import {
   transferFundos, transferPatrimonio,
 } from '../src/core/engine.js';
 import {
-  getCurrentTick, setCurrentTick, advanceTick,
+  getCurrentTick, setCurrentTick, advanceTick, goToTick,
   scheduleConversion, unscheduleConversion, getAllScheduledConversions, getConversionsForTick, clearConversionsForTick,
   scheduleInjection, removeInjection, getAllScheduledInjections, getInjectionsForTick, clearInjectionsForTick,
   removeAllConversionsForEntity, removeAllInjectionsForEntity,
@@ -267,6 +267,16 @@ document.getElementById('btn-tick').addEventListener('click', async () => {
     setStatus(`Erro no tick: ${err.message}`);
     console.error(err);
   }
+});
+
+// ── Ir para Tick ─────────────────────────────────────────────────────────────
+document.getElementById('btn-goto-tick').addEventListener('click', () => {
+  const m = parseInt(document.getElementById('goto-tick-month').value) || 1;
+  const y = parseInt(document.getElementById('goto-tick-year').value)  || TICK_EPOCH_YEAR;
+  const target = dateToTick(m, y);
+  goToTick(target);
+  updateTickCounter();
+  setStatus(`🕐 Tick navegado para ${tickLabel(target)}.`);
 });
 
 // ── Export CSVs ─────────────────────────────────────────────────────────────
