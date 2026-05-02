@@ -631,6 +631,7 @@ function renderEstadosTable() {
       ${sortHeader('Nome', 'nome', 'estados')}
       <th>Tipo</th><th>Parent</th><th>Descrição</th>
       <th>Status Econ.</th>
+      <th>População</th>
       <th title="Soma de peso das pessoas ativas neste estado">Pop. (peso)</th>
       <th>Infraestrutura</th>
       <th>Registro</th><th>Saída</th><th>Ações</th>
@@ -660,6 +661,7 @@ function renderEstadosTable() {
       </select></td>
       <td><input class="cell-input" data-entity="estado" data-idx="${i}" data-field="descricao" value="${esc(est.descricao || '')}" style="width:160px" /></td>
       <td>${statusEconomicoSelect('estado', i, est.status_economico)}</td>
+      <td class="num"><input class="cell-input num" type="number" data-entity="estado" data-idx="${i}" data-field="populacao" value="${est.atributos?.populacao ?? 0}" style="width:120px" min="0" /></td>
       <td class="num" title="Soma do campo peso das pessoas ativas neste estado">${fmtNum(popTotal)}</td>
       <td style="min-width:140px">${renderInfraBadges(est.infraestrutura)}</td>
       <td class="num"><input class="cell-input num" data-entity="estado" data-idx="${i}" data-field="tick_registro" value="${esc(tickLabel(est.tick_registro))}" style="width:80px" title="Data de registro (M/AAAA)" aria-label="Registro" /></td>
@@ -770,6 +772,8 @@ const FIELD_SETTERS = {
   tipo:      (e, v) => { e.tipo      = v; },
   parent_id: (e, v) => { e.parent_id = v; },
   descricao: (e, v) => { e.descricao = v; },
+  // Estado population (stored in atributos.populacao)
+  populacao: (e, v) => { if (e.atributos) e.atributos.populacao = Math.max(0, Math.round(Number(v) || 0)); },
   // Pessoa jogador stats (used by jogadores tab)
   nota_scouting:     (e, v) => { e.nota_scouting     = v; },
   valor_mercado:     (e, v) => { e.valor_mercado      = Math.max(0, v); },
