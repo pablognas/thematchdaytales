@@ -201,7 +201,7 @@ export function empresasToRows(empresas) {
     dono_id: e.dono_id,
     estado_id: e.estado_id,
     segmento: e.segmento || 'POP_NAO_DURAVEL',
-    setor_economico:       e.setor_economico || 'servicos',
+    setor_economico: e.setor_economico || 'servicos',
     infraestrutura:        e.infraestrutura || '',
     patrimonio:            Math.round(e.patrimonio || 0),
     funcionarios:          e.atributos.funcionarios,
