@@ -21,6 +21,7 @@ import {
   saveWorldToDb,
   SCHEMA_SQL,
 } from '../src/core/db.js';
+import { syncEstadosFromMapa } from '../src/core/import-cities.js';
 
 // ── Setup helpers ─────────────────────────────────────────────────────────────
 
@@ -283,4 +284,46 @@ test('getDb() persists schema to IndexedDB; second call loads from IDB', async (
   assert.strictEqual(loaded.estados.length, 1);
   assert.strictEqual(loaded.estados[0].id, 's1');
   assert.strictEqual(loaded.estados[0].nome, 'Paraná');
+});
+
+// ── syncEstadosFromMapa + DB round-trip ───────────────────────────────────────
+
+test('syncEstadosFromMapa + saveWorldToDb persists mapa-referenced estados on reload', async () => {
+  // Simulate a database that has mapa data referencing estado IDs but no
+  // corresponding entries in the estados table (e.g. data imported before the
+  // mapa→estados sync was introduced).
+  const db = await getDb();
+  const world = {
+    pessoas:  [],
+    empresas: [],
+    estados:  [],
+    clubes:   [],
+    mapa: {
+      // lat -23, lon -46 → São Paulo;  lat -22, lon -43 → Rio de Janeiro
+      '-23': { '-46': { tipo: 'terra', estado_id: 'br_sp' } },
+      '-22': { '-43': { tipo: 'terra', estado_id: 'br_rj' } },
+    },
+  };
+  // Save world with mapa but NO estados (simulates old/broken data)
+  saveWorldToDb(db, world);
+
+  // Load it back — at this point world.estados is empty
+  const loaded = loadWorldFromDb(db);
+  assert.strictEqual(loaded.estados.length, 0, 'should start with no estados');
+  assert.ok(Object.keys(loaded.mapa).length > 0, 'mapa should have cells');
+
+  // Simulate what initApp does: sync missing estados from the mapa, then save
+  const { created } = syncEstadosFromMapa(loaded, { tick: 0 });
+  assert.strictEqual(created.length, 2, 'should create 2 missing estados');
+  assert.ok(created.includes('br_sp'), 'br_sp should be created');
+  assert.ok(created.includes('br_rj'), 'br_rj should be created');
+
+  // Persist the synced estados back to the DB
+  saveWorldToDb(db, loaded);
+
+  // Reload again — the estados must now be there
+  const reloaded = loadWorldFromDb(db);
+  assert.strictEqual(reloaded.estados.length, 2, 'estados should survive the DB round-trip');
+  const ids = reloaded.estados.map(s => s.id).sort();
+  assert.deepStrictEqual(ids, ['br_rj', 'br_sp']);
 });
