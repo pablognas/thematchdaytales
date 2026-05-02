@@ -57,7 +57,7 @@ import {
 
 test('normalizeEstado fills all required sub-objects for a bare estado', () => {
   const bare = { id: 'x', nome: 'X' };
-  const n    = normalizeEstado(bare);
+  const n    = normalizeEstado(bare);  // n === bare (mutated in-place, same reference)
 
   assert.ok(n.atributos,    'atributos should be created');
   assert.ok(n.financas,     'financas should be created');
