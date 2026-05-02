@@ -7,6 +7,42 @@ const KEY_CONVERSIONS = 'matchday_conversions';
 const KEY_INJECTIONS  = 'matchday_injections';
 const KEY_TICK        = 'matchday_current_tick';
 
+// ── Tick ↔ date helpers ───────────────────────────────────────────────────
+
+/** First year of the tick epoch. Tick 1 = January 1850. */
+export const TICK_EPOCH_YEAR = 1850;
+
+/**
+ * Convert a tick number (≥1) to {month, year}.
+ * @param {number} tick
+ * @returns {{ month: number, year: number }}
+ */
+export function tickToDate(tick) {
+  const offset = Math.max(0, tick - 1);
+  return { month: (offset % 12) + 1, year: TICK_EPOCH_YEAR + Math.floor(offset / 12) };
+}
+
+/**
+ * Convert month (1–12) and year (≥1850) to a tick number.
+ * @param {number} month
+ * @param {number} year
+ * @returns {number}
+ */
+export function dateToTick(month, year) {
+  return (year - TICK_EPOCH_YEAR) * 12 + month;
+}
+
+/**
+ * Format a tick as "M/YYYY" string, or "—" if zero/unset.
+ * @param {number} tick
+ * @returns {string}
+ */
+export function tickLabel(tick) {
+  if (!tick || tick <= 0) return '—';
+  const { month, year } = tickToDate(tick);
+  return `${month}/${year}`;
+}
+
 // ── Tick counter ──────────────────────────────────────────────────────────
 
 /** @returns {number} */
